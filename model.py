@@ -65,6 +65,13 @@ class Model:
             input_layer = hidden_outputs
         return input_layer
 
+    '''
+    if use_char_embeds:
+        embeds_dims = 200
+        self._embeddings = embeds ) tf.get_variable("embeddings, shape = [n_chars, embeds_dims])
+        lookup of embeddings
+    '''
+
     @property
     def accuracy(self):
         return self._accuracy
