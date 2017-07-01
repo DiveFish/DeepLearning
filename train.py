@@ -95,7 +95,7 @@ def train_model(config, train_batches, validation_batches):
     train_batches, train_labels = train_batches
     validation_batches, validation_labels = validation_batches
 
-    n_chars = np.amax(train_batches) + 1
+    n_chars = np.amax(train_batches) + 1 # has to get max of train and validate
 
     with tf.Session() as sess:
         with tf.variable_scope("model", reuse=False):
@@ -124,13 +124,13 @@ def train_model(config, train_batches, validation_batches):
             # Train on all batches.
             for batch in range(train_batches.shape[0]):
                 loss, _ = sess.run([train_model.loss, train_model.train_op], {
-                                   train_model.x: train_batches[batch], train_model.y: train_labels[batch]})
+                    train_model.x: train_batches[batch], train_model.y: train_labels[batch]})
                 train_loss += loss
 
             # validation on all batches.
             for batch in range(validation_batches.shape[0]):
                 loss, acc = sess.run([validation_model.loss, validation_model.accuracy], {
-                                     validation_model.x: validation_batches[batch], validation_model.y: validation_labels[batch]})
+                    validation_model.x: validation_batches[batch], validation_model.y: validation_labels[batch]})
                 validation_loss += loss
                 accuracy += acc
 
@@ -146,6 +146,7 @@ def train_model(config, train_batches, validation_batches):
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         sys.stderr.write("Usage: %s TRAIN_SET DEV_SET\n" % sys.argv[0])
+        sys.exit(1)
 
     config = DefaultConfig()
 
@@ -164,11 +165,13 @@ if __name__ == "__main__":
     train_batches = generate_instances(
         train_lexicon,
         labels.max_number(),
+        batch_size=config.batch_size,
         prefix_len=config.prefix_len,
         suffix_len=config.suffix_len)
     validation_batches = generate_instances(
         validation_lexicon,
         labels.max_number(),
+        batch_size=config.batch_size,
         prefix_len=config.prefix_len,
         suffix_len=config.suffix_len)
 
