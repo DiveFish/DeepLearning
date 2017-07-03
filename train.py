@@ -95,7 +95,8 @@ def train_model(config, train_batches, validation_batches):
     train_batches, train_labels = train_batches
     validation_batches, validation_labels = validation_batches
 
-    n_chars = np.amax(train_batches) + 1 # has to get max of train and validate
+    # max(validation_batches) had to be added
+    n_chars = max(np.amax(train_batches), np.amax(validation_batches)) + 1 # has to get max of train and validate
 
     with tf.Session() as sess:
         with tf.variable_scope("model", reuse=False):
