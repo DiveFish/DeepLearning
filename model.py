@@ -21,37 +21,41 @@ class Model:
         label_size = label_batch.shape[2]
 
         self._x = tf.placeholder(tf.int32, shape=[batch_size, input_size])
-        xHot = tf.one_hot(self._x, n_chars)
-        xHot = tf.reshape(xHot, [batch_size, (input_size * n_chars)])
+
+        if use_char_embeds:
+            embedding_dims = 200
+            self._embeddings = embeddings = tf.get_variable("embeddings", shape = [n_chars, embedding_dims])
+            embeddings = tf.nn.embedding_lookup(embeddings, self._x)
+            embeddings = tf.reshape(embeddings, [batch_size, (input_size * embedding_dims)])
+        else:
+            x_hot = tf.one_hot(self._x, n_chars)
+            x_hot = tf.reshape(x_hot, [batch_size, (input_size * n_chars)])
 
         if phase != Phase.Predict:
             self._y = tf.placeholder(tf.float32, shape=[batch_size, label_size])
 
-        hidden = self.hidden_layers(phase, xHot, hidden_sizes)  # output of last hidden layer
-
-        #hidden_W = tf.get_variable("hidden_w", [self.x.shape[1], 20])
-        #hidden_b = tf.get_variable("hidden_b", [20])
-        #hidden = tf.matmul(self.x, hidden_W) + hidden_b
-        #hidden = tf.nn.sigmoid(hidden)
+        if (use_char_embeds):
+            hidden = self.hidden_layers(phase, embeddings, hidden_sizes)
+        else:
+            hidden = self.hidden_layers(phase, x_hot, hidden_sizes)  # output of last hidden layer
 
         w = tf.get_variable("w", shape = [hidden.shape[1], label_size])
         b = tf.get_variable("b", shape = [1])
 
         logits = tf.matmul(hidden, w) + b
-        #logits = tf.reshape(logits, [-1])
 
         # loss in train and validation phase
         if phase != Phase.Predict:
-            losses = tf.nn.softmax_cross_entropy_with_logits(labels = self.y, logits = logits)
+            losses = tf.nn.softmax_cross_entropy_with_logits(labels = self._y, logits = logits)
             self._loss = loss = tf.reduce_sum(losses)
 
         if phase == Phase.Train:
-            self._train_op = tf.train.AdagradOptimizer(0.005).minimize(loss)  # 0.003 learning rate; AdagradOptimizer, 0.01
+            self._train_op = tf.train.AdagradOptimizer(0.005).minimize(loss)
         else:
             self._probs = probs = tf.nn.softmax(logits) # train on softmax -> use softmax here too; prob dist over tags
             #self._labels = tf.cast(tf.round(probs), tf.float32) # rounds probs <0.5 to 0 and >0.5 to 1
 
-        if phase == Phase.Validation:
+        if phase != Phase.Train:
             correct = tf.equal(tf.argmax(self.y, axis=1), tf.argmax(probs, axis=1))
             self._accuracy = tf.reduce_mean(tf.cast(correct, tf.float32))
 
@@ -65,16 +69,13 @@ class Model:
             input_layer = hidden_outputs
         return input_layer
 
-    '''
-    if use_char_embeds:
-        embeds_dims = 200
-        self._embeddings = embeds ) tf.get_variable("embeddings, shape = [n_chars, embeds_dims])
-        lookup of embeddings
-    '''
-
     @property
     def accuracy(self):
         return self._accuracy
+
+    @property
+    def embeddings(self):
+        return self._embeddings
 
     @property
     def loss(self):
