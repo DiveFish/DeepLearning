@@ -1,2 +1,3 @@
 - are w and b used correctly?
 - how does dynamic_rnn work?
+- make sure we use the right dropout parameter (keep input/keep output)!
