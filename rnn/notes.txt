@@ -1,3 +1,2 @@
 - are w and b used correctly?
-- include dropout in train.py
 - how does dynamic_rnn work?
