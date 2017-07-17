@@ -38,7 +38,7 @@ class Model:
                 tf.float32, shape=[batch_size, label_size])
 
         gru_cell = rnn.GRUCell(100)
-        regularized_cell = rnn.DropoutWrapper(gru_cell,input_keep_prob=input_dropout)
+        regularized_cell = rnn.DropoutWrapper(gru_cell)
         _, hidden = tf.nn.dynamic_rnn(regularized_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
         w = tf.get_variable("w", shape=[hidden.shape[1], label_size])
