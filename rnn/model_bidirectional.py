@@ -42,8 +42,10 @@ class Model:
         #_, hidden = tf.nn.dynamic_rnn(regularized_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
         forward_cell = rnn.GRUCell(100)
+        reg_forward_cell = rnn.DropoutWrapper(forward_cell, input_keep_prob=0.7)
         backward_cell = rnn.GRUCell(100)
-        _, hidden = tf.nn.bidirectional_dynamic_rnn(forward_cell, backward_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
+        reg_backward_cell = rnn.DropoutWrapper(backward_cell, input_keep_prob=0.7)
+        _, hidden = tf.nn.bidirectional_dynamic_rnn(reg_forward_cell, reg_backward_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
         hidden_1, hidden_2 = hidden
         hidden = tf.concat([hidden_1, hidden_2], 1)
