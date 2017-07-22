@@ -66,7 +66,7 @@ class Model:
             lstm_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
             # TODO: check if dropout works!
             reg_lstm_cell = rnn.DropoutWrapper(lstm_cell, input_keep_prob=config.input_dropout,
-                                               state_keep_prob=config.hidden_dropout)
+                                               output_keep_prob=config.hidden_dropout)
             _, (_, hidden) = tf.nn.dynamic_rnn(reg_lstm_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
         elif use_stacked:
@@ -84,7 +84,7 @@ class Model:
             gru_cell = rnn.GRUCell(hidden_layers)
             # TODO: check state_keep_prob dropout!
             regularized_cell = rnn.DropoutWrapper(gru_cell, input_keep_prob=config.input_dropout,
-                                                  state_keep_prob=config.hidden_dropout)
+                                                  output_keep_prob=config.hidden_dropout)
             _, hidden = tf.nn.dynamic_rnn(regularized_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
         w = tf.get_variable("w", shape=[hidden.shape[1], label_size])
