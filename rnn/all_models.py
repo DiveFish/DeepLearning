@@ -101,8 +101,7 @@ class Model:
             start_lr = 0.01
             # Compute current learning rate
             learning_rate = tf.train.exponential_decay(start_lr, global_step, num_of_batches, 0.90)
-            self._train_op = tf.train.RMSPropOptimizer(learning_rate=learning_rate) \
-                .minimize(losses, global_step=global_step)
+             self._train_op = tf.train.AdamOptimizer(learning_rate).minimize(losses, global_step=global_step)
             self._probs = probs = tf.nn.softmax(logits)
 
         if phase == Phase.Validation:
