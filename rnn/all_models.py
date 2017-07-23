@@ -3,10 +3,12 @@ from enum import Enum
 import tensorflow as tf
 from tensorflow.contrib import rnn
 
+
 class Phase(Enum):
     Train = 0
     Validation = 1
     Predict = 2
+
 
 class Model:
     def __init__(
@@ -71,8 +73,13 @@ class Model:
 
         elif use_stacked:
             num_of_lstms = 5
-            # TODO: use dropout!
-            stacked_cell = tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse) for _ in range(num_of_lstms)], state_is_tuple=True)
+            # TODO: check if dropout works!
+
+            def stack_input_cell():
+                basic_stack_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
+                return rnn.DropoutWrapper(basic_stack_cell, input_keep_prob=config.input_dropout,
+                                          output_keep_prob=config.hidden_dropout)
+            stacked_cell = tf.contrib.rnn.MultiRNNCell([stack_input_cell() for _ in range(num_of_lstms)], state_is_tuple=True)
             _, hiddens = tf.nn.dynamic_rnn(stacked_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
             # hiddens = hidden1, hidden2, hidden3,....
 
@@ -101,7 +108,8 @@ class Model:
             start_lr = 0.01
             # Compute current learning rate
             learning_rate = tf.train.exponential_decay(start_lr, global_step, num_of_batches, 0.90)
-             self._train_op = tf.train.AdamOptimizer(learning_rate).minimize(losses, global_step=global_step)
+            self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate) \
+                .minimize(losses, global_step=global_step)
             self._probs = probs = tf.nn.softmax(logits)
 
         if phase == Phase.Validation:
