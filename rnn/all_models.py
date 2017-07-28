@@ -19,23 +19,27 @@ class Model:
             label_batch,
             n_chars,
             phase=Phase.Predict,
-            use_lstm = False,
-            use_stacked = True,
-            use_bidir = False):
+            use_bidir=True,
+            use_lstm=False,
+            use_stacked=False):
         num_of_batches = len(lens_batch)
         batch_size = batch.shape[1]
         input_size = batch.shape[2]
         label_size = label_batch.shape[2]
-        hidden_layers = 10
+        hidden_layers = 100
         embedding_size = 50
+        num_of_lstms = 5    #for stacked lstm
 
-        print("CONFIG: bidirectional")
+        print("---------------")
+        print("network: bidir="+str(use_bidir)+" lstm="+str(use_lstm)+" stacked="+str(use_stacked))
+        print("max timesteps: "+str(config.max_timesteps))
         print("input dropout: "+str(config.input_dropout))
         print("hidden dropout: "+str(config.hidden_dropout))
         print("hidden layers: "+str(hidden_layers))
         print("embedding size: "+str(embedding_size))
-        print("learning rate: 0.01")
-        print("optimizer: AdamOptimizer")
+        print("number of stacks: "+str(num_of_lstms))
+        print("start learning rate: 0.01")
+        print("optimizer: Adagrad")
 
         # The integer-encoded words. input_size is the (maximum) number of
         # time steps.
@@ -54,32 +58,32 @@ class Model:
 
         if use_bidir:
             forward_cell = rnn.GRUCell(hidden_layers)
-            reg_forward_cell = rnn.DropoutWrapper(forward_cell, input_keep_prob=config.input_dropout,
-                                                  output_keep_prob=config.hidden_dropout)
             backward_cell = rnn.GRUCell(hidden_layers)
-            reg_backward_cell = rnn.DropoutWrapper(backward_cell, input_keep_prob=config.input_dropout,
-                                                   output_keep_prob=config.hidden_dropout)
-            _, hidden = tf.nn.bidirectional_dynamic_rnn(reg_forward_cell, reg_backward_cell, embeddings,
+            if phase == Phase.Train:
+                forward_cell = rnn.DropoutWrapper(forward_cell, state_keep_prob=config.hidden_dropout,
+                                      output_keep_prob=config.hidden_dropout)
+                backward_cell = rnn.DropoutWrapper(backward_cell, state_keep_prob=config.hidden_dropout,
+                                      output_keep_prob=config.hidden_dropout)
+
+            _, hidden = tf.nn.bidirectional_dynamic_rnn(forward_cell, backward_cell, embeddings,
                                                         sequence_length=self._lens, dtype=tf.float32)
             hidden_1, hidden_2 = hidden
             hidden = tf.concat([hidden_1, hidden_2], 1)
 
         elif use_lstm:
             lstm_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
-            # TODO: check if dropout works!
-            reg_lstm_cell = rnn.DropoutWrapper(lstm_cell, input_keep_prob=config.input_dropout,
+
+            if phase == Phase.Train:
+                lstm_cell = rnn.DropoutWrapper(lstm_cell, state_keep_prob=config.input_dropout,
                                                output_keep_prob=config.hidden_dropout)
-            _, (_, hidden) = tf.nn.dynamic_rnn(reg_lstm_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
+            _, (_, hidden) = tf.nn.dynamic_rnn(lstm_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
         elif use_stacked:
-            num_of_lstms = 5
-            # TODO: check if dropout works!
+            stacked_cell = tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse) for _ in range(num_of_lstms)], state_is_tuple=True)
 
-            def stack_input_cell():
-                basic_stack_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
-                return rnn.DropoutWrapper(basic_stack_cell, input_keep_prob=config.input_dropout,
-                                          output_keep_prob=config.hidden_dropout)
-            stacked_cell = tf.contrib.rnn.MultiRNNCell([stack_input_cell() for _ in range(num_of_lstms)], state_is_tuple=True)
+            if phase == Phase.Train:
+                stacked_cell = rnn.DropoutWrapper(stacked_cell, state_keep_prob=config.input_dropout,
+                                                  output_keep_prob=config.hidden_dropout)
             _, hiddens = tf.nn.dynamic_rnn(stacked_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
             # hiddens = hidden1, hidden2, hidden3,....
 
@@ -89,10 +93,10 @@ class Model:
 
         else:
             gru_cell = rnn.GRUCell(hidden_layers)
-            # TODO: check state_keep_prob dropout!
-            regularized_cell = rnn.DropoutWrapper(gru_cell, input_keep_prob=config.input_dropout,
+            if phase == Phase.Train:
+                gru_cell = rnn.DropoutWrapper(gru_cell, state_keep_prob=config.input_dropout,
                                                   output_keep_prob=config.hidden_dropout)
-            _, hidden = tf.nn.dynamic_rnn(regularized_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
+            _, hidden = tf.nn.dynamic_rnn(gru_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
         w = tf.get_variable("w", shape=[hidden.shape[1], label_size])
         b = tf.get_variable("b", shape=[1])
