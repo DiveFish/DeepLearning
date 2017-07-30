@@ -26,26 +26,29 @@ class Model:
         batch_size = batch.shape[1]
         input_size = batch.shape[2]
         label_size = label_batch.shape[2]
-        hidden_layers = 100
+        hidden_layers = 200
         embedding_size = 50
-        num_of_lstms = 5    #for stacked lstm
+        num_of_lstms = 2    #for stacked lstm
 
         print("---------------")
         print("network: bidir="+str(use_bidir)+" lstm="+str(use_lstm)+" stacked="+str(use_stacked))
+        print("epochs: "+str(config.n_epochs))
         print("max timesteps: "+str(config.max_timesteps))
-        print("input dropout: "+str(config.input_dropout))
-        print("hidden dropout: "+str(config.hidden_dropout))
+        print("embedding/ input dropout: "+str(config.input_dropout))
+        print("state/ hidden dropout: "+str(config.hidden_dropout))
         print("hidden layers: "+str(hidden_layers))
         print("embedding size: "+str(embedding_size))
         print("number of stacks: "+str(num_of_lstms))
         print("start learning rate: 0.01")
-        print("optimizer: Adagrad")
+        print("optimizer: Adam")
 
         # The integer-encoded words. input_size is the (maximum) number of
         # time steps.
         self._x = tf.placeholder(tf.int32, shape=[batch_size, input_size])
         self._embeddings = embeddings = tf.get_variable("embeddings", shape=[n_chars, embedding_size])
         embeddings = tf.nn.embedding_lookup(embeddings, self._x)
+        if phase == Phase.Train:
+            embeddings = tf.contrib.layers.dropout(embeddings, keep_prob=config.input_dropout)
 
         # This tensor provides the actual number of time steps for each
         # instance.
@@ -72,17 +75,15 @@ class Model:
 
         elif use_lstm:
             lstm_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
-
             if phase == Phase.Train:
-                lstm_cell = rnn.DropoutWrapper(lstm_cell, state_keep_prob=config.input_dropout,
+                lstm_cell = rnn.DropoutWrapper(lstm_cell, state_keep_prob=config.hidden_dropout,
                                                output_keep_prob=config.hidden_dropout)
             _, (_, hidden) = tf.nn.dynamic_rnn(lstm_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
         elif use_stacked:
             stacked_cell = tf.contrib.rnn.MultiRNNCell([tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse) for _ in range(num_of_lstms)], state_is_tuple=True)
-
             if phase == Phase.Train:
-                stacked_cell = rnn.DropoutWrapper(stacked_cell, state_keep_prob=config.input_dropout,
+                stacked_cell = rnn.DropoutWrapper(stacked_cell, state_keep_prob=config.hidden_dropout,
                                                   output_keep_prob=config.hidden_dropout)
             _, hiddens = tf.nn.dynamic_rnn(stacked_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
             # hiddens = hidden1, hidden2, hidden3,....
@@ -94,7 +95,7 @@ class Model:
         else:
             gru_cell = rnn.GRUCell(hidden_layers)
             if phase == Phase.Train:
-                gru_cell = rnn.DropoutWrapper(gru_cell, state_keep_prob=config.input_dropout,
+                gru_cell = rnn.DropoutWrapper(gru_cell, state_keep_prob=config.hidden_dropout,
                                                   output_keep_prob=config.hidden_dropout)
             _, hidden = tf.nn.dynamic_rnn(gru_cell, embeddings, sequence_length=self._lens, dtype=tf.float32)
 
