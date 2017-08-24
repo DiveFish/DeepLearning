@@ -50,7 +50,7 @@ class Model:
             self._y = tf.placeholder(tf.float32, shape=[batch_size, label_size])
 
         if use_bidir:   # best model: bidirectional
-            forward_cell = rnn.GRUCell(hidden_layers)
+            forward_cell = rnn.GRUCell(hidden_layers)  # instead use rnn.BasicLSTMCell
             backward_cell = rnn.GRUCell(hidden_layers)
             if phase == Phase.Train:
                 forward_cell = rnn.DropoutWrapper(forward_cell, state_keep_prob=config.hidden_dropout,
