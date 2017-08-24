@@ -19,8 +19,8 @@ deriv: token derived from a name<br />
 part: part of token is a name
 
 ```
-1	Das       O<br />
-2       britische       B-LOCderiv<br />
-3       Label       O<br />
+1	Das       O
+2       britische       B-LOCderiv
+3       Label       O
 4       EMI       B-OR
 ```
