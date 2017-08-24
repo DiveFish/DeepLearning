@@ -14,13 +14,13 @@ ORG: organization<br />
 PER: person<br />
 OTH: other
 
-### Furth specifications
+### Further specifications
 deriv: token derived from a name<br />
 part: part of token is a name
 
-'''
+```
 1	Das       O<br />
 2       britische       B-LOCderiv<br />
 3       Label       O<br />
 4       EMI       B-OR
-'''
+```
