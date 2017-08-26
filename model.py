@@ -110,12 +110,16 @@ class Model:
             false_negatives = tf.reduce_sum(false_negatives)
 
             self._precision = prec = true_positives / (true_positives + false_positives)
-            self._recall = rec = true_positives / (true_positives+false_negatives)
+            self._recall = rec = true_positives / (true_positives + false_negatives)
             self._f1_score = f1 = 2*prec*rec/(prec+rec)
 
     @property
     def embeddings(self):
         return self._embeddings
+
+    @property
+    def f1_score(self):
+        return self._f1_score
 
     @property
     def lens(self):

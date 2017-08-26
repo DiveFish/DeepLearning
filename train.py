@@ -123,7 +123,9 @@ def train_model(config, train_batches, validation_batches):
         for epoch in range(config.n_epochs):
             train_loss = 0.0
             validation_loss = 0.0
-            accuracy = 0.0
+            precision = 0.0
+            recall = 0.0
+            f1_score = 0.0
 
             # Train on all batches.
             for batch in range(train_batches.shape[0]):
@@ -133,18 +135,22 @@ def train_model(config, train_batches, validation_batches):
 
             # validation on all batches.
             for batch in range(validation_batches.shape[0]):
-                loss, acc = sess.run([validation_model.loss, validation_model.accuracy], {
+                loss, prec, rec, f1 = sess.run([validation_model.loss, validation_model.precision, validation_model.recall, validation_model.f1_score], {
                     validation_model.x: validation_batches[batch], validation_model.lens: validation_lens[batch], validation_model.y: validation_labels[batch]})
                 validation_loss += loss
-                accuracy += acc
+                precision += prec
+                recall += rec
+                f1_score += f1
 
             train_loss /= train_batches.shape[0]
             validation_loss /= validation_batches.shape[0]
-            accuracy /= validation_batches.shape[0]
+            precision /= validation_batches.shape[0]
+            recall /= validation_batches.shape[0]
+            f1_score /= validation_batches.shape[0]
 
             print(
-                "epoch %d - train loss: %.2f, validation loss: %.2f, validation acc: %.2f" %
-                (epoch, train_loss, validation_loss, accuracy * 100))
+                "epoch %d - train loss: %.2f, validation loss: %.2f, validation prec: %.2f, validation rec: %.2f, validation f1: %.2f" %
+                (epoch, train_loss, validation_loss, precision * 100, recall * 100, f1_score * 100))
 
 
 if __name__ == "__main__":
