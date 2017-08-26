@@ -46,6 +46,7 @@ class Model:
         # The label distribution.
         if phase != Phase.Predict:
             self._y = tf.placeholder(tf.float32, shape=[batch_size])
+            #TODO: sind die Vektoren der Tags nicht mehrstellig und es sollte daher shape=[batch_size, label_size] sein?
 
         forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)  # instead use rnn.BasicLSTMCell
         backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
@@ -79,25 +80,38 @@ class Model:
 
         if phase == Phase.Validation:
             # Highest probability labels of the gold data: self.y
-
             # Predicted labels: logits
 
-            # TODO: include label dict
-            # accuracy; for precision, consider only the named-entity labels, not O (outisde of named entity)
-            correct = tf.equal(self._y, logits)
-            correct = tf.cast(correct, tf.float32)
-            self._precision = tf.reduce_mean(correct)
+            not_named_entity_val = label_vectors.get("O")
+            # A tensor of same shape as y where each element is equal to the outside-named-entity label vector
+            not_named_entity = tf.constant(not_named_entity_val, tf.float32, shape=[batch_size])
 
-            # TODO: include label dict
-            # recall: correctly labeled named entities vs. correctly and erroneously labeled named entities
-            correct = tf.equal(self._y, logits)
-            correct = tf.cast(correct, tf.float32)
-            incorrect = tf.not_equal(self._y, logits)
-            incorrect = tf.cast(incorrect, tf.float32)
-            self._recall = correct / (correct+incorrect)
+            named_entities_y = tf.not_equal(self._y, not_named_entity)
+            named_entities_y = tf.cast(named_entities_y, tf.float32)
+            not_named_entities_y = tf.equal(self._y, not_named_entity)
+            not_named_entities_y = tf.cast(not_named_entities_y, tf.float32)
 
-            # f1 score: 2∗precision∗recall/(precision+recall)
-            self._f1_score = 2*self._precision*self._recall/(self._precision+self._recall)
+            named_entities_logits = tf.not_equal(logits, not_named_entity)
+            named_entities_logits = tf.cast(named_entities_logits, tf.float32)
+            not_named_entities_logits = tf.equal(logits, not_named_entity)
+            not_named_entities_logits = tf.cast(not_named_entities_logits, tf.float32)
+
+            # matmul returns 1 for true=true and 0 for all other combinations of true/false
+            true_positives = tf.matmul(named_entities_y, named_entities_logits)
+            true_positives = tf.equal(true_positives, True)
+            true_positives = tf.reduce_sum(true_positives)
+
+            false_positives = tf.matmul(named_entities_logits, not_named_entities_y)
+            false_positives = tf.equal(false_positives, True)
+            false_positives = tf.reduce_sum(false_positives)
+
+            false_negatives = tf.matmul(not_named_entities_logits, named_entities_y)
+            false_negatives = tf.equal(false_negatives, True)
+            false_negatives = tf.reduce_sum(false_negatives)
+
+            self._precision = prec = true_positives / (true_positives + false_positives)
+            self._recall = rec = true_positives / (true_positives+false_negatives)
+            self._f1_score = f1 = 2*prec*rec/(prec+rec)
 
     @property
     def embeddings(self):
