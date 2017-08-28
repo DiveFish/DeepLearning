@@ -1,14 +1,77 @@
 from enum import Enum
 import os
 import sys
-
+from os import listdir
 import numpy as np
 import tensorflow as tf
+from gensim.models.keyedvectors import KeyedVectors
 
 from config import DefaultConfig
 from model import Model, Phase
 from numberer import Numberer
 
+def read_data(filename):
+    words = []
+    tags = []
+    with open(filename, "r") as f:
+        for line in f:
+            if (line != "\n"):
+                parts = line.split("\t")
+                word = parts[1]
+                tag = parts[5]
+                words.append(word)
+                tags.append(tag)
+    return words, tags
+
+def get_one_hot_labels(labels):
+    print(labels)
+    unique_labels = list(set(labels))
+    zeros = np.zeros(len(unique_labels))
+    print(zeros)
+    one_hot_dic = dict()
+
+    for i in range(len(unique_labels)):
+        labelvec = np.zeros(len(unique_labels))
+        labelvec[i]=1
+        one_hot_dic[unique_labels[i]]= labelvec
+
+    return one_hot_dic
+
+def read_files(mypath):
+    files = listdir(mypath)
+    filenames = []
+    for f in files:
+        filenames.append(mypath+"/"+f)
+    allwords = []
+    alltags = []
+    for file in filenames:
+        (words, tags) = read_data(file)
+        allwords.append(words)
+        alltags.append(tags)
+    return (allwords, alltags)
+
+def read_wordEmbeddings(f):
+
+    word_vectors = KeyedVectors.load_word2vec_format(f, binary=False)
+    return word_vectors
+
+
+def get_train_test_parts(allwords, alltags):
+    training_words = [item for sublist in allwords[0:7] for item in sublist]
+    test_words = [item for sublist in allwords[8:9] for item in sublist]
+    training_tags = [item for sublist in alltags[0:7] for item in sublist]
+    test_tags = [item for sublist in alltags[8:9] for item in sublist]
+    return[training_words, test_words, training_tags, test_tags]
+
+def convert_data(words, tags, embeds, tagdic):
+    data = []
+    for i in range(len(words)):
+        if(words[i].lower() in embeds.wv.vocab):
+            wordvec = embeds.wv[(words[i].lower())]
+        else:
+            wordvec = np.zeros(50)
+        data.append(wordvec)
+    return data
 
 def read_lexicon(filename):
     with open(filename, "r") as f:
@@ -107,6 +170,7 @@ def train_model(config, train_batches, validation_batches):
                 train_lens,
                 train_labels,
                 n_chars,
+
                 phase=Phase.Train)
 
         with tf.variable_scope("model", reuse=True):
@@ -148,6 +212,19 @@ def train_model(config, train_batches, validation_batches):
 
 
 if __name__ == "__main__":
+
+    #(words, tags) = read_data("/home/neele/Dokumente/DeepLearningPY3/dl4nlp17-ner/part1.conll")
+    #print(len(words))
+    #print(len(tags))
+    (allwords, alltags) = read_files("/home/neele/Dokumente/DeepLearningPY3/dl4nlp17-ner")
+    labeldic = get_one_hot_labels(alltags[0])
+    wordEmbeddings = read_wordEmbeddings("/home/neele/Dokumente/InformationRetrieval/glove.6B/glove_model50d.txt")
+    print("embeddings have been read")
+    [trainingwords, testwords, trainingtags, testtags] = get_train_test_parts(allwords, alltags)
+    x = convert_data(testwords, testtags, wordEmbeddings, labeldic)
+    print(x)
+
+    """
     if len(sys.argv) != 3:
         sys.stderr.write("Usage: %s TRAIN_SET DEV_SET\n" % sys.argv[0])
         sys.exit(1)
@@ -179,3 +256,4 @@ if __name__ == "__main__":
 
     # Train the model
     train_model(config, train_batches, validation_batches)
+    """
