@@ -29,7 +29,6 @@ class Model:
         label_size = label_batch.shape[2]
         hidden_layers = 200
         embedding_size = 50
-        num_of_lstms = 2    # for stacked lstm
 
         # The integer-encoded words. input_size is the (maximum) number of
         # time steps.
@@ -45,8 +44,7 @@ class Model:
 
         # The label distribution.
         if phase != Phase.Predict:
-            self._y = tf.placeholder(tf.float32, shape=[batch_size])
-            #TODO: sind die Vektoren der Tags nicht mehrstellig und es sollte daher shape=[batch_size, label_size] sein?
+            self._y = tf.placeholder(tf.float32, shape=[batch_size, len(label_vectors)])
 
         forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)  # instead use rnn.BasicLSTMCell
         backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
@@ -65,22 +63,37 @@ class Model:
         b = tf.get_variable("b", shape=[1])
         logits = tf.matmul(hidden, w) + b
 
+        # CRF layer
+        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(
+                                                                    logits, labels=self._y, sequence_length=self._lens)
+
         if phase == Phase.Train or Phase.Validation:
-            losses = tf.nn.softmax_cross_entropy_with_logits(labels=self._y, logits=logits)
-            self._loss = loss = tf.reduce_sum(losses)
+            self.loss = tf.reduce_mean(-log_likelihood)
 
         if phase == Phase.Train:
             global_step = tf.Variable(0, trainable=False)
             start_lr = 0.01
             # Compute current learning rate
             learning_rate = tf.train.exponential_decay(start_lr, global_step, num_of_batches, 0.90)
-            self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate) \
-                .minimize(losses, global_step=global_step)
+            self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)\
+                                     .minimize(self.loss, global_step=global_step)
             self._probs = probs = tf.nn.softmax(logits)
 
+        # TODO:  Where to put the following code?
+        #<<<
+        viterbi_sequences = []
+        # iterate over the sentences
+        for logit, sequence_length in zip(logits, self._lens):
+            # keep only the valid time steps
+            logit = logit[:sequence_length]
+            viterbi_sequence, viterbi_score = tf.contrib.crf.viterbi_decode(logit, transition_params)
+            viterbi_sequences += [viterbi_sequence]
+        #>>>
+
+        # TODO: Does "outside of named entity" tag count as named-entity tag?
         if phase == Phase.Validation:
             # Highest probability labels of the gold data: self.y
-            # Predicted labels: logits
+            # Predicted labels: pred
 
             not_named_entity_val = label_vectors.get("O")
             # A tensor of same shape as y where each element is equal to the outside-named-entity label vector
@@ -91,6 +104,7 @@ class Model:
             not_named_entities_y = tf.equal(self._y, not_named_entity)
             not_named_entities_y = tf.cast(not_named_entities_y, tf.float32)
 
+            # TODO: switch from logits to
             named_entities_logits = tf.not_equal(logits, not_named_entity)
             named_entities_logits = tf.cast(named_entities_logits, tf.float32)
             not_named_entities_logits = tf.equal(logits, not_named_entity)
@@ -111,7 +125,7 @@ class Model:
 
             self._precision = prec = true_positives / (true_positives + false_positives)
             self._recall = rec = true_positives / (true_positives + false_negatives)
-            self._f1_score = f1 = 2*prec*rec/(prec+rec)
+            self._f1_score = f1 = 2.0*prec*rec/(prec+rec)
 
     @property
     def embeddings(self):

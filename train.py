@@ -149,7 +149,8 @@ def train_model(config, train_batches, validation_batches):
             f1_score /= validation_batches.shape[0]
 
             print(
-                "epoch %d - train loss: %.2f, validation loss: %.2f, validation prec: %.2f, validation rec: %.2f, validation f1: %.2f" %
+                "epoch %d - train loss: %.2f, validation loss: %.2f,"
+                "validation precision: %.2f, validation recall: %.2f, validation f1-score: %.2f" %
                 (epoch, train_loss, validation_loss, precision * 100, recall * 100, f1_score * 100))
 
 
