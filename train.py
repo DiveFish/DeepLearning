@@ -10,68 +10,65 @@ from config import DefaultConfig
 from model import Model, Phase
 from numberer import Numberer
 
-def read_data(filename):
-    words = []
-    tags = []
+'''global variable data, needed in order to only iterate once'''
+data = []
+'''iterate over one file and save wordembedding an corresponding label as onehot representation'''
+def read_data(filename, embeddings, labeldic):
+
     with open(filename, "r") as f:
         for line in f:
             if (line != "\n"):
                 parts = line.split("\t")
                 word = parts[1]
                 tag = parts[5]
-                words.append(word)
-                tags.append(tag)
-    return words, tags
+                wordvec, tagvec = convert_data(word, tag, embeddings, labeldic)
+                data.append((wordvec, tagvec))
 
+'''get onehot representations for all labels'''
+def get_label_dic(files):
+    tags = []
+    for file in files:
+        with open(file, "r") as f:
+            for line in f:
+                if (line != "\n"):
+                    parts = line.split("\t")
+                    tag = parts[5]
+                    tags.append(tag)
+    dic = get_one_hot_labels(tags)
+    return dic
+
+'''get one hot representation for one label'''
 def get_one_hot_labels(labels):
-    print(labels)
     unique_labels = list(set(labels))
-    zeros = np.zeros(len(unique_labels))
-    print(zeros)
     one_hot_dic = dict()
-
     for i in range(len(unique_labels)):
         labelvec = np.zeros(len(unique_labels))
         labelvec[i]=1
         one_hot_dic[unique_labels[i]]= labelvec
-
     return one_hot_dic
 
+'''get all files from corpus'''
 def read_files(mypath):
     files = listdir(mypath)
     filenames = []
     for f in files:
         filenames.append(mypath+"/"+f)
-    allwords = []
-    alltags = []
-    for file in filenames:
-        (words, tags) = read_data(file)
-        allwords.append(words)
-        alltags.append(tags)
-    return (allwords, alltags)
+    return filenames
 
+'''read word embeddings from file'''
 def read_wordEmbeddings(f):
 
     word_vectors = KeyedVectors.load_word2vec_format(f, binary=False)
     return word_vectors
 
+'''convert word and label into wordembedding and label vector '''
+def convert_data(word, tag, embeds, tagdic):
+    if(word.lower() in embeds.wv.vocab):
+        wordvec = embeds.wv[(word.lower())]
+    else:
+        wordvec = np.zeros(50)
 
-def get_train_test_parts(allwords, alltags):
-    training_words = [item for sublist in allwords[0:7] for item in sublist]
-    test_words = [item for sublist in allwords[8:9] for item in sublist]
-    training_tags = [item for sublist in alltags[0:7] for item in sublist]
-    test_tags = [item for sublist in alltags[8:9] for item in sublist]
-    return[training_words, test_words, training_tags, test_tags]
-
-def convert_data(words, tags, embeds, tagdic):
-    data = []
-    for i in range(len(words)):
-        if(words[i].lower() in embeds.wv.vocab):
-            wordvec = embeds.wv[(words[i].lower())]
-        else:
-            wordvec = np.zeros(50)
-        data.append(wordvec)
-    return data
+    return (wordvec, tagdic[tag])
 
 def read_lexicon(filename):
     with open(filename, "r") as f:
@@ -112,9 +109,9 @@ def recode_lexicon(lexicon, chars, labels, train=False):
 
 def generate_instances(
         data,
-        max_label,
+        labelsize,
         max_timesteps,
-        batch_size=128):
+        batch_size=DefaultConfig.batch_size):
     n_batches = len(data) // batch_size
 
     # We are discarding the last batch for now, for simplicity.
@@ -122,7 +119,7 @@ def generate_instances(
         shape=(
             n_batches,
             batch_size,
-            max_label),
+            labelsize),
         dtype=np.float32)
     lengths = np.zeros(
         shape=(
@@ -133,16 +130,14 @@ def generate_instances(
         shape=(
             n_batches,
             batch_size,
-            max_timesteps),
+            50),
         dtype=np.int32)
 
     for batch in range(n_batches):
         for idx in range(batch_size):
             (word, l) = data[(batch * batch_size) + idx]
-
             # Add label distribution
-            for label, prob in l.items():
-                labels[batch, idx, label] = prob
+            labels[batch, idx] = l
 
             # Sequence
             timesteps = min(max_timesteps, len(word))
@@ -151,7 +146,8 @@ def generate_instances(
             lengths[batch, idx] = timesteps
 
             # Word characters
-            words[batch, idx, :timesteps] = word[:timesteps]
+            words[batch, idx] = word
+            print(words[batch, idx])
 
     return (words, lengths, labels)
 
@@ -216,13 +212,24 @@ if __name__ == "__main__":
     #(words, tags) = read_data("/home/neele/Dokumente/DeepLearningPY3/dl4nlp17-ner/part1.conll")
     #print(len(words))
     #print(len(tags))
-    (allwords, alltags) = read_files("/home/neele/Dokumente/DeepLearningPY3/dl4nlp17-ner")
-    labeldic = get_one_hot_labels(alltags[0])
+    filenames = read_files("/home/neele/Dokumente/DeepLearningPY3/dl4nlp17-ner")
+    labeldic = get_label_dic([filenames[8], filenames[6], filenames[7]])
     wordEmbeddings = read_wordEmbeddings("/home/neele/Dokumente/InformationRetrieval/glove.6B/glove_model50d.txt")
     print("embeddings have been read")
-    [trainingwords, testwords, trainingtags, testtags] = get_train_test_parts(allwords, alltags)
-    x = convert_data(testwords, testtags, wordEmbeddings, labeldic)
-    print(x)
+    for f in filenames:
+        print(f)
+        read_data(f, wordEmbeddings, labeldic)
+    training = data[0:372418]
+    test = data[372419:]
+    print("data has been read")
+
+    train_batches = generate_instances(
+        training,
+        len(labeldic.keys()),
+        DefaultConfig.max_timesteps,
+        batch_size=DefaultConfig.batch_size)
+    train_batches, train_lens, train_labels = train_batches
+    #print(train_batches)
 
     """
     if len(sys.argv) != 3:
