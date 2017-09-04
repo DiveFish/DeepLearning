@@ -17,7 +17,7 @@ class Model:
     def __init__(
             self,
             config,
-            label_vectors, # dictionary of labels and their one-hot vector representation
+            label_vectors,  # dictionary of labels and their one-hot vector representation
             batch,
             lens_batch,
             label_batch,
@@ -30,23 +30,25 @@ class Model:
         hidden_layers = 200
         embedding_size = 50
 
-        # The integer-encoded words. input_size is the (maximum) number of
-        # time steps.
+        # The integer-encoded words. Input_size is the (maximum) number of time steps,
+        # here the longest sentence.
         self._x = tf.placeholder(tf.int32, shape=[batch_size, input_size])
+        # TODO: replace by Daniel's embeddings
         self._embeddings = embeddings = tf.get_variable("embeddings", shape=[n_chars, embedding_size])
         embeddings = tf.nn.embedding_lookup(embeddings, self._x)
         if phase == Phase.Train:
             embeddings = tf.nn.dropout(embeddings, keep_prob=config.input_dropout)
 
-        # This tensor provides the actual number of time steps for each
-        # instance.
+        # This tensor provides the actual number of time steps for each instance,
+        # here the actual sentence lengths.
         self._lens = tf.placeholder(tf.int32, shape=[batch_size])
 
         # The label distribution.
+        #TODO: self._y needs to be of same shape as input/self._x, i.e. a list of list of labels/ label vectors
         if phase != Phase.Predict:
             self._y = tf.placeholder(tf.float32, shape=[batch_size, len(label_vectors)])
 
-        forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)  # instead use rnn.BasicLSTMCell
+        forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
         backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
         if phase == Phase.Train:
             forward_cell = rnn.DropoutWrapper(forward_cell, state_keep_prob=config.hidden_dropout,
@@ -66,7 +68,6 @@ class Model:
         # CRF layer
         log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(
                                                                     logits, labels=self._y, sequence_length=self._lens)
-
         if phase == Phase.Train or Phase.Validation:
             self.loss = tf.reduce_mean(-log_likelihood)
 
@@ -84,13 +85,17 @@ class Model:
         viterbi_sequences = []
         # iterate over the sentences
         for logit, sequence_length in zip(logits, self._lens):
-            # keep only the valid time steps
             logit = logit[:sequence_length]
             viterbi_sequence, viterbi_score = tf.contrib.crf.viterbi_decode(logit, transition_params)
-            viterbi_sequences += [viterbi_sequence]
+            viterbi_sequences += [viterbi_sequence]  # predicted labels
         #>>>
 
-        # TODO: Does "outside of named entity" tag count as named-entity tag?
+        # compute overall precision, recall and FB1 (default values are 0.0)
+        #$precision = 100*$correctChunk/$foundGuessed if ($foundGuessed > 0);
+        #$recall = 100*$correctChunk/$foundCorrect if ($foundCorrect > 0);
+        #$FB1 = 2*$precision*$recall/($precision+$recall)
+            #if ($precision+$recall > 0);
+
         if phase == Phase.Validation:
             # Highest probability labels of the gold data: self.y
             # Predicted labels: pred
