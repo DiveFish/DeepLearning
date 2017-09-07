@@ -6,6 +6,8 @@ from enum import Enum
 import tensorflow as tf
 from tensorflow.contrib import rnn
 
+from chunker import Chunker
+
 
 class Phase(Enum):
     Train = 0
@@ -17,11 +19,11 @@ class Model:
     def __init__(
             self,
             config,
-            label_vectors,  # dictionary of labels and their one-hot vector representation
             batch,
             lens_batch,
             label_batch,
             n_chars,
+            label_dict,  # dictionary of labels and their ID
             phase=Phase.Predict):
         num_of_batches = len(lens_batch)
         batch_size = batch.shape[1]
@@ -46,7 +48,7 @@ class Model:
         # The label distribution.
         #TODO: self._y needs to be of same shape as input/self._x, i.e. a list of list of labels/ label vectors
         if phase != Phase.Predict:
-            self._y = tf.placeholder(tf.float32, shape=[batch_size, len(label_vectors)])
+            self._y = tf.placeholder(tf.float32, shape=[batch_size, len(label_dict)])
 
         forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
         backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
@@ -88,49 +90,36 @@ class Model:
             logit = logit[:sequence_length]
             viterbi_sequence, viterbi_score = tf.contrib.crf.viterbi_decode(logit, transition_params)
             viterbi_sequences += [viterbi_sequence]  # predicted labels
-        #>>>
-
-        # compute overall precision, recall and FB1 (default values are 0.0)
-        #$precision = 100*$correctChunk/$foundGuessed if ($foundGuessed > 0);
-        #$recall = 100*$correctChunk/$foundCorrect if ($foundCorrect > 0);
-        #$FB1 = 2*$precision*$recall/($precision+$recall)
-            #if ($precision+$recall > 0);
 
         if phase == Phase.Validation:
-            # Highest probability labels of the gold data: self.y
-            # Predicted labels: pred
+            foundGuessed = 0
+            foundCorrect = 0
+            correctChunks = 0
+            chunker = Chunker()
 
-            not_named_entity_val = label_vectors.get("O")
-            # A tensor of same shape as y where each element is equal to the outside-named-entity label vector
-            not_named_entity = tf.constant(not_named_entity_val, tf.float32, shape=[batch_size])
+            for i in range(len(viterbi_sequences)):
+                sentence = viterbi_sequences[i]
+                for j in range(len(sentence)):
+                    guessed_tag = label_dict.get(sentence[j])
+                    y_tag = label_dict.get(self._y[j])
+                    if chunker.chunk_start(guessed_tag):
+                        foundGuessed += 1
+                    if chunker.chunk_start(y_tag):
+                        foundCorrect += 1
+                    if chunker.chunk_end(guessed_tag) and chunker.chunk_end(y_tag) and guessed_tag == y_tag:
+                        correctChunks += 1
 
-            named_entities_y = tf.not_equal(self._y, not_named_entity)
-            named_entities_y = tf.cast(named_entities_y, tf.float32)
-            not_named_entities_y = tf.equal(self._y, not_named_entity)
-            not_named_entities_y = tf.cast(not_named_entities_y, tf.float32)
+            self._precision = prec = 0
+            if foundGuessed > 0:
+                prec = 100 * correctChunks / foundGuessed
 
-            # TODO: switch from logits to
-            named_entities_logits = tf.not_equal(logits, not_named_entity)
-            named_entities_logits = tf.cast(named_entities_logits, tf.float32)
-            not_named_entities_logits = tf.equal(logits, not_named_entity)
-            not_named_entities_logits = tf.cast(not_named_entities_logits, tf.float32)
+            self._recall = rec = 0
+            if foundCorrect > 0:
+                rec = 100 * correctChunks / foundCorrect
 
-            # matmul returns 1 for true=true and 0 for all other combinations of true/false
-            true_positives = tf.matmul(named_entities_y, named_entities_logits)
-            true_positives = tf.equal(true_positives, True)
-            true_positives = tf.reduce_sum(true_positives)
-
-            false_positives = tf.matmul(named_entities_logits, not_named_entities_y)
-            false_positives = tf.equal(false_positives, True)
-            false_positives = tf.reduce_sum(false_positives)
-
-            false_negatives = tf.matmul(not_named_entities_logits, named_entities_y)
-            false_negatives = tf.equal(false_negatives, True)
-            false_negatives = tf.reduce_sum(false_negatives)
-
-            self._precision = prec = true_positives / (true_positives + false_positives)
-            self._recall = rec = true_positives / (true_positives + false_negatives)
-            self._f1_score = f1 = 2.0*prec*rec/(prec+rec)
+            self._f1_score = f1 = 0
+            if prec > 0 and rec > 0:
+                f1 = 2.0*prec*rec/(prec+rec)
 
     @property
     def embeddings(self):
