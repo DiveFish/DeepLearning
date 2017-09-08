@@ -46,9 +46,8 @@ class Model:
         self._lens = tf.placeholder(tf.int32, shape=[batch_size])
 
         # The label distribution.
-        #TODO: self._y needs to be of same shape as input/self._x, i.e. a list of list of labels/ label vectors
         if phase != Phase.Predict:
-            self._y = tf.placeholder(tf.float32, shape=[batch_size, len(label_dict)])
+            self._y = tf.placeholder(tf.float32, shape=[batch_size, label_size])
 
         forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
         backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
@@ -62,15 +61,17 @@ class Model:
                                                     sequence_length=self._lens, dtype=tf.float32)
         hidden_1, hidden_2 = hidden
         hidden = tf.concat([hidden_1, hidden_2], 1)
+        # TODO: test
+        hidden = tf.nn.dropout(hidden, self.dropout)
 
         w = tf.get_variable("w", shape=[hidden.shape[1], label_size])
         b = tf.get_variable("b", shape=[1])
         logits = tf.matmul(hidden, w) + b
 
-        # CRF layer
-        log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(
-                                                                    logits, labels=self._y, sequence_length=self._lens)
+        # CRF layer.
         if phase == Phase.Train or Phase.Validation:
+            log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(
+                logits, labels=self._y, sequence_length=self._lens)
             self.loss = tf.reduce_mean(-log_likelihood)
 
         if phase == Phase.Train:
@@ -78,18 +79,17 @@ class Model:
             start_lr = 0.01
             # Compute current learning rate
             learning_rate = tf.train.exponential_decay(start_lr, global_step, num_of_batches, 0.90)
+            # TODO: compare different optimizers
             self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)\
                                      .minimize(self.loss, global_step=global_step)
-            self._probs = probs = tf.nn.softmax(logits)
 
-        # TODO:  Where to put the following code?
-        #<<<
+        # Predicted labels.
         viterbi_sequences = []
-        # iterate over the sentences
-        for logit, sequence_length in zip(logits, self._lens):
-            logit = logit[:sequence_length]
+        # Iterate over sentences
+        for logit, sentence_length in zip(logits, self._lens):
+            logit = logit[:sentence_length]
             viterbi_sequence, viterbi_score = tf.contrib.crf.viterbi_decode(logit, transition_params)
-            viterbi_sequences += [viterbi_sequence]  # predicted labels
+            viterbi_sequences += [viterbi_sequence]
 
         if phase == Phase.Validation:
             foundGuessed = 0
@@ -97,11 +97,11 @@ class Model:
             correctChunks = 0
             chunker = Chunker()
 
-            for i in range(len(viterbi_sequences)):
-                sentence = viterbi_sequences[i]
-                for j in range(len(sentence)):
-                    guessed_tag = label_dict.get(sentence[j])
-                    y_tag = label_dict.get(self._y[j])
+            for seq in range(len(viterbi_sequences)):
+                sentence = viterbi_sequences[seq]
+                for sent in range(len(sentence)):
+                    guessed_tag = label_dict.get(sentence[sent])
+                    y_tag = label_dict.get(self._y[sent])
                     if chunker.chunk_start(guessed_tag):
                         foundGuessed += 1
                     if chunker.chunk_start(y_tag):
@@ -109,17 +109,14 @@ class Model:
                     if chunker.chunk_end(guessed_tag) and chunker.chunk_end(y_tag) and guessed_tag == y_tag:
                         correctChunks += 1
 
-            self._precision = prec = 0
             if foundGuessed > 0:
-                prec = 100 * correctChunks / foundGuessed
+                self._precision = prec = 100 * correctChunks / foundGuessed
 
-            self._recall = rec = 0
             if foundCorrect > 0:
-                rec = 100 * correctChunks / foundCorrect
+                self._recall = rec = 100 * correctChunks / foundCorrect
 
-            self._f1_score = f1 = 0
-            if prec > 0 and rec > 0:
-                f1 = 2.0*prec*rec/(prec+rec)
+            if (prec > 0) and (rec > 0):
+                self._f1_score = f1 = 2.0*prec*rec/(prec+rec)
 
     @property
     def embeddings(self):
@@ -140,10 +137,6 @@ class Model:
     @property
     def precision(self):
         return self._precision
-
-    @property
-    def probs(self):
-        return self._probs
 
     @property
     def recall(self):
