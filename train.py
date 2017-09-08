@@ -139,6 +139,8 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 train_batches,
                 train_lens,
                 train_labels,
+                label_to_number,
+                number_to_label,
 
                 phase=Phase.Train)
 
@@ -148,6 +150,8 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 validation_batches,
                 validation_lens,
                 validation_labels,
+                label_to_number,
+                number_to_label,
                 phase=Phase.Validation)
 
         sess.run(tf.global_variables_initializer())
