@@ -12,6 +12,8 @@ from gensim.models.keyedvectors import KeyedVectors
 from config import DefaultConfig
 from model import Model, Phase
 from numberer import Numberer
+from viterbi_decoder import Viterbi_Decoder
+from scorer import Scorer
 
 # Global variable data, needed in order to only iterate once
 data = []
@@ -163,26 +165,30 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
 
             # Train on all batches.
             for batch in range(train_batches.shape[0]):
-                for sentence in range(len(batch)):
-                    loss, _ = sess.run([train_model.loss, train_model.train_op], {
-                        train_model.x: train_batches[batch][sentence],
-                        train_model.lens: train_lens[batch][sentence],
-                        train_model.y: train_labels[batch][sentence]})
-                    train_loss += loss
+                loss, _ = sess.run([train_model.loss,
+                                    train_model.train_op], {
+                    train_model.x: train_batches[batch],
+                    train_model.lens: train_lens[batch],
+                    train_model.y: train_labels[batch]})
+                train_loss += loss
 
+            decoder = Viterbi_Decoder()
+            scorer = Scorer()
             # Validate on all batches.
             for batch in range(validation_batches.shape[0]):
-                for sentence in range(len(batch)):
-                    loss, prec, rec, f1 = sess.run([validation_model.loss,
-                                                    validation_model.precision,
-                                                    validation_model.recall, validation_model.f1_score], {
-                        validation_model.x: validation_batches[batch][sentence],
-                        validation_model.lens: validation_lens[batch][sentence],
-                        validation_model.y: validation_labels[batch][sentence]})
-                    validation_loss += loss
-                    precision += prec
-                    recall += rec
-                    f1_score += f1
+                loss, logits, transition_params = sess.run([validation_model.loss,
+                                                            validation_model.logits,
+                                                            validation_model.transition_params], {
+                    validation_model.x: validation_batches[batch],
+                    validation_model.lens: validation_lens[batch],
+                    validation_model.y: validation_labels[batch]})
+                validation_loss += loss
+                viterbi_sequences = decoder.decode(logits, transition_params)
+                prec, rec, f1 = scorer.scores(viterbi_sequences)
+                # get prec, rec and f1 for current batch
+                precision += prec
+                recall += rec
+                f1_score += f1
 
             train_loss /= train_batches.shape[0]
             validation_loss /= validation_batches.shape[0]

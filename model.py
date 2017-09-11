@@ -22,7 +22,7 @@ class Model:
             batch,
             lens_batch,
             label_batch,
-            label_id_dict, # dictionary of IDs with their label
+            label_id_dict,  # dictionary of IDs with their label
             phase=Phase.Predict):
         num_of_batches = len(lens_batch)
         batch_size = batch.shape[1]
@@ -31,6 +31,7 @@ class Model:
         label_size = label_batch.shape[2]
         hidden_layers = 100
 
+
         '''
         NER code:
         a batch is a list of tuples, a tuple = (sentence, tags);
@@ -38,6 +39,17 @@ class Model:
         x_batch = [[word1, word2], [...], ...]
         y_batch = [[label1, label2], [...], ...]
 
+
+numpy matrix
+rows: number of sentences in batch
+column: max num of tokens in sentence
+
+for pretrained embeddings, use lookup; load embedding matrix syn.zero property which gives you the embedding matrix
+but also dictionary
+
+preprocessing: look up "Amsterdam" in dictionary and get index of "Amsterdam" in embedding matrix
+
+pass embedding matrix as placeholder to model
         '''
 
         # The integer-encoded words. Input_size is the (maximum) number of time steps,
@@ -54,8 +66,8 @@ class Model:
         if phase != Phase.Predict:
             self._y = tf.placeholder(tf.int32, shape=[batch_size, label_size])
 
-        forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
-        backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers)
+        forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
+        backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
         if phase == Phase.Train:
             forward_cell = rnn.DropoutWrapper(forward_cell, state_keep_prob=config.hidden_dropout,
                                               output_keep_prob=config.hidden_dropout)
@@ -65,18 +77,19 @@ class Model:
         (hidden_1, hidden_2), _ = tf.nn.bidirectional_dynamic_rnn(forward_cell, backward_cell, self._x,
                                                     sequence_length=self._lens, dtype=tf.float32)
         hidden = tf.concat([hidden_1, hidden_2], -1)
-        hidden = tf.reshape(hidden, [-1, 2*hidden_layers])
-        # TODO: test
-        hidden = tf.nn.dropout(hidden, 0.9)
 
         w = tf.get_variable("w", shape=[2*hidden_layers, label_size])
         b = tf.get_variable("b", shape=[1])
-        logits = tf.matmul(hidden, w) + b
-        logits = tf.reshape(logits, [-1, tf.shape(hidden)[1], label_size])
+
+        hidden = tf.reshape(hidden, [-1, 2*hidden_layers])
+        # TODO: test
+        #hidden = tf.nn.dropout(hidden, 0.9)
+        self._logits = logits = tf.matmul(hidden, w) + b
+        logits = tf.reshape(logits, [-1, tf.shape(hidden)[1], label_size])  # tf.shape creates a new graph node while .shape is more of a property that can be called
 
         # CRF layer.
         if phase == Phase.Train or Phase.Validation:
-            log_likelihood, transition_params = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
+            log_likelihood, self._transition_params = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
             self._loss = tf.reduce_mean(-log_likelihood)
 
         if phase == Phase.Train:
@@ -87,55 +100,6 @@ class Model:
             # TODO: compare different optimizers
             self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)\
                                      .minimize(self.loss, global_step=global_step)
-
-        # Predicted labels.
-        viterbi_sequences = []
-        # Iterate over sentences
-        for logit, sentence_length in zip(logits, self._lens):
-            logit = logit[:sentence_length]
-            viterbi_sequence, viterbi_score = tf.contrib.crf.viterbi_decode(logit, transition_params)
-            viterbi_sequences += [viterbi_sequence]
-
-        # Get performance of model: precision, recall, f1-score
-        if phase == Phase.Validation:
-            found_guessed = 0
-            found_correct = 0
-            correct_chunks = 0
-            chunker = Chunker()
-
-            for seq in range(len(viterbi_sequences)):
-                tags = viterbi_sequences[seq]
-                inside_chunk = False
-                for tag_idx in range(len(tags)):
-                    guessed_tag = label_id_dict.get(tags[tag_idx])
-                    y_tag = label_id_dict.get(self._y[tag_idx])
-                    if chunker.chunk_start(guessed_tag):
-                        found_guessed += 1
-                        inside_chunk = True
-                        if guessed_tag == y_tag:
-                            in_correct = True
-                    if chunker.chunk_start(y_tag):
-                        found_correct += 1
-                    # For each tag check whether it matches the gold standard tag
-                    # in_correct true if all tags in chunk processed so far matched
-                    if inside_chunk and (guessed_tag == y_tag) and in_correct:
-                        continue
-                    else:
-                        in_correct = False
-                    if chunker.chunk_end(guessed_tag) and chunker.chunk_end(y_tag) and in_correct:
-                        correct_chunks += 1
-                        # Reset values for next chunk
-                        inside_chunk = False
-                        in_correct = False
-
-            if found_guessed > 0:
-                self._precision = prec = 100 * correct_chunks / found_guessed
-
-            if found_correct > 0:
-                self._recall = rec = 100 * correct_chunks / found_correct
-
-            if (prec > 0) and (rec > 0):
-                self._f1_score = 2.0 * prec*rec / (prec + rec)
 
     @property
     def embeddings(self):
@@ -148,6 +112,10 @@ class Model:
     @property
     def lens(self):
         return self._lens
+
+    @property
+    def logits(self):
+        return self._logits
 
     @property
     def loss(self):
@@ -164,6 +132,10 @@ class Model:
     @property
     def train_op(self):
         return self._train_op
+
+    @property
+    def transition_params(self):
+        return self._transition_params
 
     @property
     def x(self):
