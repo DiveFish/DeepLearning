@@ -133,7 +133,7 @@ def generate_instances(data, n_labels, max_timesteps, batch_size=DefaultConfig.b
     return (sentences, lengths, labels)
 
 
-def train_model(config, train_batches, train_lens, train_labels,validation_batches, validation_lens, validation_labels):
+def train_model(config, train_batches, train_lens, train_labels,validation_batches, validation_lens, validation_labels, number_to_label):
 
     with tf.Session() as sess:
         with tf.variable_scope("model", reuse=False):
@@ -142,7 +142,6 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 train_batches,
                 train_lens,
                 train_labels,
-                number_to_label,
                 phase=Phase.Train)
 
         with tf.variable_scope("model", reuse=True):
@@ -151,7 +150,6 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 validation_batches,
                 validation_lens,
                 validation_labels,
-                number_to_label,
                 phase=Phase.Validation)
 
         sess.run(tf.global_variables_initializer())
@@ -184,7 +182,7 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                     validation_model.y: validation_labels[batch]})
                 validation_loss += loss
                 viterbi_sequences = decoder.decode(logits, transition_params)
-                prec, rec, f1 = scorer.scores(viterbi_sequences)
+                prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label)
                 # get prec, rec and f1 for current batch
                 precision += prec
                 recall += rec
@@ -220,13 +218,13 @@ if __name__ == "__main__":
         training,
         len(label_to_number.keys())+1,
         DefaultConfig.max_timesteps,
-        batch_size = DefaultConfig.batch_size)
+        batch_size=DefaultConfig.batch_size)
 
     (validation_sentences, validation_lengths, validation_labels) = generate_instances(
         test,
         len(label_to_number.keys())+1,
         DefaultConfig.max_timesteps,
-        batch_size = DefaultConfig.batch_size)
+        batch_size=DefaultConfig.batch_size)
 
     # Train the model
-    train_model(DefaultConfig, train_sentences, train_lengths, train_labels, validation_sentences, validation_lengths, validation_labels)
+    train_model(DefaultConfig, train_sentences, train_lengths, train_labels, validation_sentences, validation_lengths, validation_labels, number_to_label)

@@ -1,6 +1,8 @@
+from chunker import Chunker
+
 class Scorer:
 
-    def scores(self, viterbi_sequences):
+    def scores(self, viterbi_sequences, id_to_tag_dict):
         # Get performance of model: precision, recall, f1-score
         found_guessed = 0
         found_correct = 0
@@ -11,8 +13,8 @@ class Scorer:
             tags = viterbi_sequences[seq]
             inside_chunk = False
             for tag_idx in range(len(tags)):
-                guessed_tag = label_id_dict.get(tags[tag_idx])
-                y_tag = label_id_dict.get(self._y[tag_idx])
+                guessed_tag = id_to_tag_dict.get(tags[tag_idx])
+                y_tag = id_to_tag_dict.get(self._y[tag_idx])
                 if chunker.chunk_start(guessed_tag):
                     found_guessed += 1
                     inside_chunk = True

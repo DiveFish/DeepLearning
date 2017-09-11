@@ -22,7 +22,6 @@ class Model:
             batch,
             lens_batch,
             label_batch,
-            label_id_dict,  # dictionary of IDs with their label
             phase=Phase.Predict):
         num_of_batches = len(lens_batch)
         batch_size = batch.shape[1]
@@ -30,27 +29,6 @@ class Model:
         embedding_size = batch.shape[3]
         label_size = label_batch.shape[2]
         hidden_layers = 100
-
-
-        '''
-        NER code:
-        a batch is a list of tuples, a tuple = (sentence, tags);
-        minibatches() method returns x_batch, y_batch = [], []
-        x_batch = [[word1, word2], [...], ...]
-        y_batch = [[label1, label2], [...], ...]
-
-
-numpy matrix
-rows: number of sentences in batch
-column: max num of tokens in sentence
-
-for pretrained embeddings, use lookup; load embedding matrix syn.zero property which gives you the embedding matrix
-but also dictionary
-
-preprocessing: look up "Amsterdam" in dictionary and get index of "Amsterdam" in embedding matrix
-
-pass embedding matrix as placeholder to model
-        '''
 
         # The integer-encoded words. Input_size is the (maximum) number of time steps,
         # here the longest sentence.
@@ -75,8 +53,8 @@ pass embedding matrix as placeholder to model
                                                output_keep_prob=config.hidden_dropout)
 
         (hidden_1, hidden_2), _ = tf.nn.bidirectional_dynamic_rnn(forward_cell, backward_cell, self._x,
-                                                    sequence_length=self._lens, dtype=tf.float32)
-        hidden = tf.concat([hidden_1, hidden_2], -1)
+                                                                  sequence_length=self._lens, dtype=tf.float32)
+        hidden = tf.concat([hidden_1, hidden_2], 1)  # shape: 512, 100, 100
 
         w = tf.get_variable("w", shape=[2*hidden_layers, label_size])
         b = tf.get_variable("b", shape=[1])
