@@ -1,3 +1,6 @@
+#Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
+#Honor Code:  We pledge that this program represents our own work.
+
 from enum import Enum
 import os
 import sys
@@ -9,12 +12,15 @@ from gensim.models.keyedvectors import KeyedVectors
 from config import DefaultConfig
 from model import Model, Phase
 from numberer import Numberer
+from viterbi_decoder import Viterbi_Decoder
+from scorer import Scorer
 
-'''global variable data, needed in order to only iterate once'''
+# Global variable data, needed in order to only iterate once
 data = []
 
-'''iterate over one file and save wordembedding an corresponding label as onehot representation'''
-def read_data(filename, embeddings, labeldic):
+
+# Iterate over one file, save word embedding and corresponding label as one-hot representation
+def read_data(filename, embeddings, label_dict):
 
     with open(filename, "r") as f:
         sentence = []
@@ -23,15 +29,14 @@ def read_data(filename, embeddings, labeldic):
                 parts = line.split("\t")
                 word = parts[1]
                 tag = parts[5]
-                wordvec, tagvec = convert_data(word, tag, embeddings, labeldic)
+                wordvec, tagvec = convert_data(word, tag, embeddings, label_dict)
                 sentence.append((wordvec, tagvec))
             else:
                 data.append(sentence)
                 sentence = []
 
 
-
-'''get number representations for all labels'''
+# Number representations for all labels
 def get_labels(files):
     tags = []
     for file in files:
@@ -52,13 +57,12 @@ def convert_label_to_number(labels):
     l = Numberer()
     for label in unique_labels:
         n = l.number(label)
-        label_to_number[label]= n
+        label_to_number[label] = n
         number_to_label[n] = label
     return (label_to_number, number_to_label)
 
 
-
-'''get all files from corpus'''
+# Get all files from corpus
 def read_files(mypath):
     files = listdir(mypath)
     filenames = []
@@ -66,15 +70,16 @@ def read_files(mypath):
         filenames.append(mypath+"/"+f)
     return filenames
 
-'''read word embeddings from file'''
-def read_wordEmbeddings(f):
 
+# Read word embeddings from file
+def read_word_embeddings(f):
     word_vectors = KeyedVectors.load_word2vec_format(f, binary=True)
     return word_vectors
 
-'''convert word and label into wordembedding and label vector '''
+
+# Convert word and label into wordembedding and label vector
 def convert_data(word, tag, embeds, tagdic):
-    if(word.lower() in embeds.wv.vocab):
+    if (word.lower() in embeds.wv.vocab):
         wordvec = embeds.wv[(word.lower())]
     else:
         wordvec = np.zeros(100)
@@ -82,11 +87,11 @@ def convert_data(word, tag, embeds, tagdic):
     return (wordvec, tagdic[tag])
 
 
-
-def generate_instances(data, n_labels, max_timesteps,  batch_size=DefaultConfig.batch_size):
+def generate_instances(data, n_labels, max_timesteps, batch_size=DefaultConfig.batch_size):
     n_batches = len(data) // batch_size
-    print("start")
-    print(n_labels, n_batches, batch_size)
+    #print("Start")
+    #print(n_labels, n_batches, batch_size)
+
     # We are discarding the last batch for now, for simplicity.
     labels = np.zeros(
         shape=(
@@ -99,7 +104,7 @@ def generate_instances(data, n_labels, max_timesteps,  batch_size=DefaultConfig.
             n_batches,
             batch_size),
         dtype=np.int32)
-    words = np.zeros(
+    sentences = np.zeros(
         shape=(
             n_batches,
             batch_size,
@@ -109,28 +114,26 @@ def generate_instances(data, n_labels, max_timesteps,  batch_size=DefaultConfig.
 
     for batch in range(n_batches):
         for idx in range(batch_size):
-            sen = data[(batch*batch_size)+idx]
-            w = [i[0] for i in sen]
-            l = [i[1] for i in sen]
+            sent = data[(batch*batch_size)+idx]
+            s = [i[0] for i in sent]
+            l = [i[1] for i in sent]
 
             # Sequence
-            timesteps = min(max_timesteps, len(sen))
-            #labels
-            labels[batch, idx, :timesteps] = l[:timesteps]
+            timesteps = min(max_timesteps, len(sent))
 
             # Sequence length (time steps)
             lengths[batch, idx] = timesteps
 
-            #words
+            # Labels
+            labels[batch, idx, :timesteps] = l[:timesteps]
 
-            words[batch, idx,:timesteps] = w[:timesteps]
+            # Words
+            sentences[batch, idx,:timesteps] = s[:timesteps]
 
-    return (words, lengths, labels)
-
-
-def train_model(config, train_batches, train_lens, train_labels,validation_batches, validation_lens, validation_labels):
+    return (sentences, lengths, labels)
 
 
+def train_model(config, train_batches, train_lens, train_labels,validation_batches, validation_lens, validation_labels, number_to_label):
 
     with tf.Session() as sess:
         with tf.variable_scope("model", reuse=False):
@@ -139,9 +142,6 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 train_batches,
                 train_lens,
                 train_labels,
-                label_to_number,
-                number_to_label,
-
                 phase=Phase.Train)
 
         with tf.variable_scope("model", reuse=True):
@@ -150,74 +150,85 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 validation_batches,
                 validation_lens,
                 validation_labels,
-                label_to_number,
-                number_to_label,
                 phase=Phase.Validation)
 
         sess.run(tf.global_variables_initializer())
 
         for epoch in range(config.n_epochs):
+
             train_loss = 0.0
             validation_loss = 0.0
-            accuracy = 0.0
+            precision = 0.0
+            recall = 0.0
+            f1_score = 0.0
 
             # Train on all batches.
             for batch in range(train_batches.shape[0]):
-                loss, _ = sess.run([train_model.loss, train_model.train_op], {
-                    train_model.x: train_batches[batch], train_model.lens: train_lens[batch], train_model.y: train_labels[batch]})
+                print("ich bin in batch 1")
+                loss, _ = sess.run([train_model.loss,
+                                    train_model.train_op], {
+                                       train_model.x: train_batches[batch],
+                                       train_model.lens: train_lens[batch],
+                                       train_model.y: train_labels[batch]})
                 train_loss += loss
 
-            # validation on all batches.
+            decoder = Viterbi_Decoder()
+            scorer = Scorer()
+            # Validate on all batches.
             for batch in range(validation_batches.shape[0]):
-                loss, acc = sess.run([validation_model.loss, validation_model.accuracy], {
-                    validation_model.x: validation_batches[batch], validation_model.lens: validation_lens[batch], validation_model.y: validation_labels[batch]})
+                loss, logits, transition_params = sess.run([validation_model.loss,
+                                                            validation_model.logits,
+                                                            validation_model.transition_params], {
+                                                               validation_model.x: validation_batches[batch],
+                                                               validation_model.lens: validation_lens[batch],
+                                                               validation_model.y: validation_labels[batch]})
                 validation_loss += loss
-                accuracy += acc
+                viterbi_sequences = decoder.decode(logits, transition_params)
+                prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label)
+                # get prec, rec and f1 for current batch
+                precision += prec
+                recall += rec
+                f1_score += f1
 
             train_loss /= train_batches.shape[0]
             validation_loss /= validation_batches.shape[0]
-            accuracy /= validation_batches.shape[0]
+            precision /= validation_batches.shape[0]
+            recall /= validation_batches.shape[0]
+            f1_score /= validation_batches.shape[0]
 
             print(
-                "epoch %d - train loss: %.2f, validation loss: %.2f, validation acc: %.2f" %
-                (epoch, train_loss, validation_loss, accuracy * 100))
+                "epoch %d - train loss: %.2f, validation loss: %.2f,"
+                "validation precision: %.2f, validation recall: %.2f, validation f1-score: %.2f" %
+                (epoch, train_loss, validation_loss, precision * 100, recall * 100, f1_score * 100))
 
 
 if __name__ == "__main__":
 
-
-    #(words, tags) = read_data("/home/neele/Dokumente/DeepLearningPY3/dl4nlp17-ner/part1.conll")
-    #print(len(words))
-    #print(len(tags))
-
     filenames = read_files("/home/neele/Dokumente/DeepLearningPY3/dl4nlp17-ner")
-    tags = get_labels([filenames[8], filenames[6], filenames[7]])
+    tags = get_labels(filenames)
     (label_to_number, number_to_label) = convert_label_to_number(tags)
-    wordEmbeddings = read_wordEmbeddings("/home/neele/Downloads/wikipedia-100-mincount-20-window-5-cbow.bin")
+    wordEmbeddings = read_word_embeddings("/home/neele/Downloads/wikipedia-100-mincount-20-window-5-cbow.bin")
 
-    print("embeddings have been read")
+    print("Embeddings have been read")
     for f in filenames:
         read_data(f, wordEmbeddings, label_to_number)
     training = data[0:372418]
     test = data[372419:]
-    print("data has been read")
-
+    print("Data has been read")
 
     (train_sentences, train_lengths, train_labels) = generate_instances(
         training,
         len(label_to_number.keys())+1,
         DefaultConfig.max_timesteps,
         batch_size=DefaultConfig.batch_size)
-    print("done")
 
-    (valid_sentences, valid_lengths, valid_labels) = generate_instances(
+    (validation_sentences, validation_lengths, validation_labels) = generate_instances(
         test,
         len(label_to_number.keys())+1,
         DefaultConfig.max_timesteps,
         batch_size=DefaultConfig.batch_size)
-
-    print("done")
-
-
+    print(train_sentences.shape)
+    print(train_lengths.shape)
+    print(train_labels.shape)
     # Train the model
-    train_model(DefaultConfig, train_sentences, train_lengths, train_labels, valid_sentences, valid_lengths, valid_labels)
+    train_model(DefaultConfig, train_sentences, train_lengths, train_labels, validation_sentences, validation_lengths, validation_labels, number_to_label)
