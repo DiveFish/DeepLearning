@@ -59,13 +59,13 @@ class Model:
         b = tf.get_variable("b", shape=[1])
 
         hidden_flattened = tf.reshape(hidden, [-1, 2*hidden_layers])
-        self._logits = logits = tf.matmul(hidden_flattened, w) + b
-        logits = tf.reshape(logits, [batch_size, config.max_timesteps, label_size])
+        logits = tf.matmul(hidden_flattened, w) + b
+        self._logits = logits = tf.reshape(logits, [batch_size, config.max_timesteps, label_size])
 
         # CRF layer.
         if phase == Phase.Train or Phase.Validation:
             log_likelihood, self._transition_params = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
-            self._loss = loss = tf.reduce_mean(-log_likelihood)
+            self._loss = tf.reduce_mean(-log_likelihood)
 
         if phase == Phase.Train:
             global_step = tf.Variable(0, trainable=False)

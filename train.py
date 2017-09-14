@@ -183,11 +183,12 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                     validation_model.x: validation_batches[batch],
                     validation_model.lens: validation_lens[batch],
                     validation_model.y: validation_labels[batch]})
+                print(logits.shape)
                 validation_loss += loss
                 print("Decode batch "+str(batch))
                 viterbi_sequences = decoder.decode(logits, transition_params, validation_lens[batch])
                 print("Calculate scores for batch "+str(batch))
-                prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label)
+                prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label, validation_labels)
                 # Get prec, rec and f1 for current batch
                 precision += prec
                 recall += rec
@@ -218,7 +219,8 @@ if __name__ == "__main__":
 
     #training = data[0:372418]
     #test = data[372419:]
-    split = math.ceil((len(data)/5)*4)
+    #split = math.ceil((len(data)/5)*4)
+    split = math.ceil((len(data)/5)*1)
     training = data[0:split]
     test = data[split+1:]
     print("Data has been read")
