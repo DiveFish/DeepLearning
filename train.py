@@ -5,6 +5,7 @@ from enum import Enum
 import os
 import sys
 from os import listdir
+import math
 import numpy as np
 import tensorflow as tf
 from gensim.models.keyedvectors import KeyedVectors
@@ -169,7 +170,9 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                     train_model.lens: train_lens[batch],
                     train_model.y: train_labels[batch]})
                 train_loss += loss
+                print("Trained on batch "+str(batch))
 
+            print("Training done")
             decoder = Viterbi_Decoder()
             scorer = Scorer()
             # Validate on all batches.
@@ -181,9 +184,11 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                     validation_model.lens: validation_lens[batch],
                     validation_model.y: validation_labels[batch]})
                 validation_loss += loss
-                viterbi_sequences = decoder.decode(logits, transition_params)
+                print("Decode batch "+str(batch))
+                viterbi_sequences = decoder.decode(logits, transition_params, validation_lens[batch])
+                print("Calculate scores for batch "+str(batch))
                 prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label)
-                # get prec, rec and f1 for current batch
+                # Get prec, rec and f1 for current batch
                 precision += prec
                 recall += rec
                 f1_score += f1
@@ -210,8 +215,12 @@ if __name__ == "__main__":
     print("Embeddings have been read")
     for f in filenames:
         read_data(f, wordEmbeddings, label_to_number)
-    training = data[0:372418]
-    test = data[372419:]
+
+    #training = data[0:372418]
+    #test = data[372419:]
+    split = math.ceil((len(data)/5)*4)
+    training = data[0:split]
+    test = data[split+1:]
     print("Data has been read")
 
     (train_sentences, train_lengths, train_labels) = generate_instances(

@@ -27,7 +27,6 @@ class Model:
         embedding_size = batch.shape[3]
         label_size = label_batch.shape[2]
         hidden_layers = 100
-
         # The integer-encoded words. Input_size is the (maximum) number of time steps,
         # here the longest sentence.
         self._x = tf.placeholder(tf.float32, shape=[batch_size, input_size, embedding_size])
@@ -65,7 +64,7 @@ class Model:
 
         # CRF layer.
         if phase == Phase.Train or Phase.Validation:
-            log_likelihood, _ = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
+            log_likelihood, self._transition_params = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
             self._loss = loss = tf.reduce_mean(-log_likelihood)
 
         if phase == Phase.Train:
