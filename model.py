@@ -6,8 +6,6 @@ from enum import Enum
 import tensorflow as tf
 from tensorflow.contrib import rnn
 
-from chunker import Chunker
-
 
 class Phase(Enum):
     Train = 0
@@ -54,21 +52,21 @@ class Model:
 
         (hidden_1, hidden_2), _ = tf.nn.bidirectional_dynamic_rnn(forward_cell, backward_cell, self._x,
                                                                   sequence_length=self._lens, dtype=tf.float32)
-        hidden = tf.concat([hidden_1, hidden_2], 1)  # shape: 512, 100, 100
+        hidden = tf.concat([hidden_1, hidden_2], axis=1)
+        # TODO: test
+        hidden = tf.nn.dropout(hidden, 0.9)
 
-        w = tf.get_variable("w", shape=[2*hidden_layers, label_size])
+        w = tf.get_variable("W", shape=[2*hidden_layers, label_size])
         b = tf.get_variable("b", shape=[1])
 
-        hidden = tf.reshape(hidden, [-1, 2*hidden_layers])
-        # TODO: test
-        #hidden = tf.nn.dropout(hidden, 0.9)
-        self._logits = logits = tf.matmul(hidden, w) + b
-        logits = tf.reshape(logits, [-1, tf.shape(hidden)[1], label_size])  # tf.shape creates a new graph node while .shape is more of a property that can be called
+        hidden_flattened = tf.reshape(hidden, [-1, 2*hidden_layers])
+        self._logits = logits = tf.matmul(hidden_flattened, w) + b
+        logits = tf.reshape(logits, [batch_size, config.max_timesteps, label_size])
 
         # CRF layer.
         if phase == Phase.Train or Phase.Validation:
-            log_likelihood, self._transition_params = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
-            self._loss = tf.reduce_mean(-log_likelihood)
+            log_likelihood, _ = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
+            self._loss = loss = tf.reduce_mean(-log_likelihood)
 
         if phase == Phase.Train:
             global_step = tf.Variable(0, trainable=False)
@@ -76,8 +74,8 @@ class Model:
             # Compute current learning rate
             learning_rate = tf.train.exponential_decay(start_lr, global_step, num_of_batches, 0.90)
             # TODO: compare different optimizers
-            self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)\
-                                     .minimize(self.loss, global_step=global_step)
+            self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate) \
+                .minimize(self.loss, global_step=global_step)
 
     @property
     def embeddings(self):
