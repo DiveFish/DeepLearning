@@ -1,3 +1,4 @@
+
 #Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
 #Honor Code:  We pledge that this program represents our own work.
 
@@ -5,8 +6,6 @@ from enum import Enum
 
 import tensorflow as tf
 from tensorflow.contrib import rnn
-
-from chunker import Chunker
 
 
 class Phase(Enum):
@@ -29,7 +28,6 @@ class Model:
         embedding_size = batch.shape[3]
         label_size = label_batch.shape[2]
         hidden_layers = 100
-
         # The integer-encoded words. Input_size is the (maximum) number of time steps,
         # here the longest sentence.
         self._x = tf.placeholder(tf.float32, shape=[batch_size, input_size, embedding_size])
@@ -54,29 +52,22 @@ class Model:
 
         (hidden_1, hidden_2), _ = tf.nn.bidirectional_dynamic_rnn(forward_cell, backward_cell, self._x,
                                                                   sequence_length=self._lens, dtype=tf.float32)
+        hidden = tf.concat([hidden_1, hidden_2], axis=1)
+        # TODO: test
+        hidden = tf.nn.dropout(hidden, 0.9)
 
-
-        context_rep = tf.concat([hidden_1, hidden_2], axis=-1)
-
-        W = tf.get_variable("W", shape=[2*hidden_layers, label_size],
-                            dtype=tf.float32)
-
+        w = tf.get_variable("W", shape=[2*hidden_layers, 27])
         b = tf.get_variable("b", shape=[1])
 
-        context_rep_flat = tf.reshape(context_rep, [-1, 2*hidden_layers])
-        self._logits = logits = tf.matmul(context_rep_flat, W) + b
-        scores = tf.reshape(logits, [-1, 50,label_size])
-        print("scores")
-        print(scores.shape)
-        # TODO: test
-        #hidden = tf.nn.dropout(hidden, 0.9)
+        hidden_flattened = tf.reshape(hidden, [-1, 2*hidden_layers])
+        logits = tf.matmul(hidden_flattened, w) + b
+        self._logits = logits = tf.reshape(logits, [batch_size, config.max_timesteps, 27])
+        print("logitshape")
+        print(logits.shape)
         # CRF layer.
         if phase == Phase.Train or Phase.Validation:
-            log_likelihood, _ = tf.contrib.crf.crf_log_likelihood(scores, self._y, self._lens)
-            self._loss =loss= tf.reduce_mean(-log_likelihood)
-            print("loss")
-            print(loss)
-
+            log_likelihood, self._transition_params = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
+            self._loss = tf.reduce_mean(-log_likelihood)
         if phase == Phase.Train:
             global_step = tf.Variable(0, trainable=False)
             start_lr = 0.01

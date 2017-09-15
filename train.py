@@ -1,3 +1,4 @@
+
 #Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
 #Honor Code:  We pledge that this program represents our own work.
 
@@ -5,6 +6,7 @@ from enum import Enum
 import os
 import sys
 from os import listdir
+import math
 import numpy as np
 import tensorflow as tf
 from gensim.models.keyedvectors import KeyedVectors
@@ -155,7 +157,6 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
         sess.run(tf.global_variables_initializer())
 
         for epoch in range(config.n_epochs):
-
             train_loss = 0.0
             validation_loss = 0.0
             precision = 0.0
@@ -164,7 +165,6 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
 
             # Train on all batches.
             for batch in range(train_batches.shape[0]):
-                print("ich bin in batch 1")
                 loss, _ = sess.run([train_model.loss,
                                     train_model.train_op], {
                                        train_model.x: train_batches[batch],
@@ -172,6 +172,9 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                                        train_model.y: train_labels[batch]})
                 train_loss += loss
 
+                print("Trained on batch "+str(batch))
+
+            print("Training done")
             decoder = Viterbi_Decoder()
             scorer = Scorer()
             # Validate on all batches.
@@ -182,10 +185,13 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                                                                validation_model.x: validation_batches[batch],
                                                                validation_model.lens: validation_lens[batch],
                                                                validation_model.y: validation_labels[batch]})
+                print(logits.shape)
                 validation_loss += loss
-                viterbi_sequences = decoder.decode(logits, transition_params)
-                prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label)
-                # get prec, rec and f1 for current batch
+                print("Decode batch "+str(batch))
+                viterbi_sequences = decoder.decode(logits, transition_params, validation_lens[batch])
+                print("Calculate scores for batch "+str(batch))
+                prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label, validation_labels, batch)
+                # Get prec, rec and f1 for current batch
                 precision += prec
                 recall += rec
                 f1_score += f1
@@ -204,17 +210,22 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
 
 if __name__ == "__main__":
 
-    filenames = read_files("/home/neele/Dokumente/DeepLearningPY3/dl4nlp17-ner")
+    filenames = read_files(sys.argv[1])
     tags = get_labels(filenames)
     (label_to_number, number_to_label) = convert_label_to_number(tags)
-    wordEmbeddings = read_word_embeddings("/home/neele/Downloads/wikipedia-100-mincount-20-window-5-cbow.bin")
-
+    embedding_file = sys.argv[2]
+    wordEmbeddings = read_word_embeddings(embedding_file)
     print("Embeddings have been read")
     for f in filenames:
         read_data(f, wordEmbeddings, label_to_number)
-    training = data[0:372418]
-    test = data[372419:]
+
+    #training = data[0:372418]
+    #test = data[372419:]
+    split = math.ceil((len(data)/5))
+    training = data[0:2]
+    test = data[split+1:]
     print("Data has been read")
+    print(len(label_to_number))
 
     (train_sentences, train_lengths, train_labels) = generate_instances(
         training,
@@ -227,8 +238,6 @@ if __name__ == "__main__":
         len(label_to_number.keys())+1,
         DefaultConfig.max_timesteps,
         batch_size=DefaultConfig.batch_size)
-    print(train_sentences.shape)
-    print(train_lengths.shape)
-    print(train_labels.shape)
+
     # Train the model
     train_model(DefaultConfig, train_sentences, train_lengths, train_labels, validation_sentences, validation_lengths, validation_labels, number_to_label)
