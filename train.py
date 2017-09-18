@@ -1,3 +1,4 @@
+
 #Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
 #Honor Code:  We pledge that this program represents our own work.
 
@@ -134,7 +135,8 @@ def generate_instances(data, n_labels, max_timesteps, batch_size=DefaultConfig.b
     return (sentences, lengths, labels)
 
 
-def train_model(config, train_batches, train_lens, train_labels,validation_batches, validation_lens, validation_labels, number_to_label):
+def train_model(config, train_batches, train_lens, train_labels,validation_batches, validation_lens, validation_labels,
+                num_of_labels, number_to_label):
 
     with tf.Session() as sess:
         with tf.variable_scope("model", reuse=False):
@@ -143,6 +145,7 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 train_batches,
                 train_lens,
                 train_labels,
+                num_of_labels,
                 phase=Phase.Train)
 
         with tf.variable_scope("model", reuse=True):
@@ -151,6 +154,7 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 validation_batches,
                 validation_lens,
                 validation_labels,
+                num_of_labels,
                 phase=Phase.Validation)
 
         sess.run(tf.global_variables_initializer())
@@ -166,10 +170,11 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
             for batch in range(train_batches.shape[0]):
                 loss, _ = sess.run([train_model.loss,
                                     train_model.train_op], {
-                    train_model.x: train_batches[batch],
-                    train_model.lens: train_lens[batch],
-                    train_model.y: train_labels[batch]})
+                                       train_model.x: train_batches[batch],
+                                       train_model.lens: train_lens[batch],
+                                       train_model.y: train_labels[batch]})
                 train_loss += loss
+
                 print("Trained on batch "+str(batch))
 
             print("Training done")
@@ -180,15 +185,15 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 loss, logits, transition_params = sess.run([validation_model.loss,
                                                             validation_model.logits,
                                                             validation_model.transition_params], {
-                    validation_model.x: validation_batches[batch],
-                    validation_model.lens: validation_lens[batch],
-                    validation_model.y: validation_labels[batch]})
+                                                               validation_model.x: validation_batches[batch],
+                                                               validation_model.lens: validation_lens[batch],
+                                                               validation_model.y: validation_labels[batch]})
                 print(logits.shape)
                 validation_loss += loss
                 print("Decode batch "+str(batch))
                 viterbi_sequences = decoder.decode(logits, transition_params, validation_lens[batch])
                 print("Calculate scores for batch "+str(batch))
-                prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label, validation_labels)
+                prec, rec, f1 = scorer.scores(viterbi_sequences, number_to_label, validation_labels, batch)
                 # Get prec, rec and f1 for current batch
                 precision += prec
                 recall += rec
@@ -208,22 +213,22 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
 
 if __name__ == "__main__":
 
-    filenames = read_files("/home/patricia/IdeaProjects/project_data/dl4nlp17-ner")
+    filenames = read_files(sys.argv[1])
     tags = get_labels(filenames)
     (label_to_number, number_to_label) = convert_label_to_number(tags)
-    wordEmbeddings = read_word_embeddings("/home/patricia/IdeaProjects/project_data/wikipedia-100-mincount-20-window-5-cbow.bin")
-
+    embedding_file = sys.argv[2]
+    wordEmbeddings = read_word_embeddings(embedding_file)
     print("Embeddings have been read")
     for f in filenames:
         read_data(f, wordEmbeddings, label_to_number)
 
-    #training = data[0:372418]
-    #test = data[372419:]
-    #split = math.ceil((len(data)/5)*4)
-    split = math.ceil((len(data)/5)*1)
+    split = math.ceil((len(data)/5))  # TODO: .../5)*4
     training = data[0:split]
     test = data[split+1:]
     print("Data has been read")
+
+    num_of_labels = len(label_to_number)
+    print("Number of labels: " + str(num_of_labels))
 
     (train_sentences, train_lengths, train_labels) = generate_instances(
         training,
@@ -238,4 +243,6 @@ if __name__ == "__main__":
         batch_size=DefaultConfig.batch_size)
 
     # Train the model
-    train_model(DefaultConfig, train_sentences, train_lengths, train_labels, validation_sentences, validation_lengths, validation_labels, number_to_label)
+    train_model(DefaultConfig, train_sentences, train_lengths, train_labels,
+                validation_sentences, validation_lengths, validation_labels,
+                num_of_labels, number_to_label)

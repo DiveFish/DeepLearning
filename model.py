@@ -1,3 +1,4 @@
+
 #Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
 #Honor Code:  We pledge that this program represents our own work.
 
@@ -20,6 +21,7 @@ class Model:
             batch,
             lens_batch,
             label_batch,
+            num_of_labels,
             phase=Phase.Predict):
         num_of_batches = len(lens_batch)
         batch_size = batch.shape[1]
@@ -55,18 +57,17 @@ class Model:
         # TODO: test
         hidden = tf.nn.dropout(hidden, 0.9)
 
-        w = tf.get_variable("W", shape=[2*hidden_layers, label_size])
+        w = tf.get_variable("W", shape=[2*hidden_layers, num_of_labels])
         b = tf.get_variable("b", shape=[1])
 
         hidden_flattened = tf.reshape(hidden, [-1, 2*hidden_layers])
         logits = tf.matmul(hidden_flattened, w) + b
-        self._logits = logits = tf.reshape(logits, [batch_size, config.max_timesteps, label_size])
+        self._logits = logits = tf.reshape(logits, [batch_size, config.max_timesteps, num_of_labels])
 
         # CRF layer.
         if phase == Phase.Train or Phase.Validation:
             log_likelihood, self._transition_params = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
             self._loss = tf.reduce_mean(-log_likelihood)
-
         if phase == Phase.Train:
             global_step = tf.Variable(0, trainable=False)
             start_lr = 0.01
@@ -81,10 +82,6 @@ class Model:
         return self._embeddings
 
     @property
-    def f1_score(self):
-        return self._f1_score
-
-    @property
     def lens(self):
         return self._lens
 
@@ -95,14 +92,6 @@ class Model:
     @property
     def loss(self):
         return self._loss
-
-    @property
-    def precision(self):
-        return self._precision
-
-    @property
-    def recall(self):
-        return self._recall
 
     @property
     def train_op(self):
