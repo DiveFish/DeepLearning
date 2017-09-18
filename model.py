@@ -56,12 +56,12 @@ class Model:
         # TODO: test
         hidden = tf.nn.dropout(hidden, 0.9)
 
-        w = tf.get_variable("W", shape=[2*hidden_layers, 27])
+        w = tf.get_variable("W", shape=[2*hidden_layers, 26])
         b = tf.get_variable("b", shape=[1])
 
         hidden_flattened = tf.reshape(hidden, [-1, 2*hidden_layers])
         logits = tf.matmul(hidden_flattened, w) + b
-        self._logits = logits = tf.reshape(logits, [batch_size, config.max_timesteps, 27])
+        self._logits = logits = tf.reshape(logits, [batch_size, config.max_timesteps, 26])
         print("logitshape")
         print(logits.shape)
         # CRF layer.

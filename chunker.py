@@ -11,8 +11,7 @@ class Chunker:
         if sequence_end and (current_tag.startswith("B") or current_tag.startswith("I")):
             return True
         else:
-            if ((previous_tag.startswith("B") or previous_tag.startswith("I"))
-                and (current_tag.startswith("B") or current_tag.startswith('O'))):
+            if (previous_tag.startswith("B") or previous_tag.startswith("I")) and (current_tag.startswith("B") or current_tag.startswith('O')):
                 return True
             else:
                 return False

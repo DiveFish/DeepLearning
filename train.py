@@ -221,8 +221,8 @@ if __name__ == "__main__":
 
     #training = data[0:372418]
     #test = data[372419:]
-    split = math.ceil((len(data)/5))
-    training = data[0:2]
+    split = math.ceil((len(data)/5)*4)
+    training = data[0:split]
     test = data[split+1:]
     print("Data has been read")
     print(len(label_to_number))
