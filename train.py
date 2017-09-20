@@ -17,13 +17,23 @@ from numberer import Numberer
 from viterbi_decoder import Viterbi_Decoder
 from scorer import Scorer
 
+
 # Global variable data, needed in order to only iterate once
 data = []
 
 
-# Iterate over one file, save word embedding and corresponding label as one-hot representation
-def read_data(filename, embeddings, label_dict):
+def word2index(model):
+    """Extract word2index mapping from Word2Vec model.
+    """
+    counter= 0
+    word2index = {}
+    for key in wordEmbeddings.wv.index2word:
+        word2index[key] = counter
+        counter+=1
+    return word2index
 
+# Iterate over one file, save word embedding and corresponding label as one-hot representation
+def read_data(filename, embeddings, label_dict, word2index):
     with open(filename, "r") as f:
         sentence = []
         for line in f:
@@ -31,8 +41,8 @@ def read_data(filename, embeddings, label_dict):
                 parts = line.split("\t")
                 word = parts[1]
                 tag = parts[5]
-                wordvec, tagvec = convert_data(word, tag, embeddings, label_dict)
-                sentence.append((wordvec, tagvec))
+                wordindex, tagvec = convert_data(word, tag, embeddings, label_dict, word2index)
+                sentence.append((wordindex, tagvec))
             else:
                 data.append(sentence)
                 sentence = []
@@ -80,13 +90,14 @@ def read_word_embeddings(f):
 
 
 # Convert word and label into wordembedding and label vector
-def convert_data(word, tag, embeds, tagdic):
-    if (word.lower() in embeds.wv.vocab):
-        wordvec = embeds.wv[(word.lower())]
+def convert_data(word, tag, embeds, tagdic, index2word):
+    if (word in embeds.wv.vocab):
+        wordindex = index2word[word]
     else:
-        wordvec = np.zeros(100)
+        #hier sollte eine id für unknown word angegeben werden
+        wordindex = 0
 
-    return (wordvec, tagdic[tag])
+    return (wordindex, tagdic[tag])
 
 
 def generate_instances(data, n_labels, max_timesteps, batch_size=DefaultConfig.batch_size):
@@ -100,7 +111,7 @@ def generate_instances(data, n_labels, max_timesteps, batch_size=DefaultConfig.b
             n_batches,
             batch_size,
             max_timesteps),
-        dtype=np.float32)
+        dtype=np.int32)
     lengths = np.zeros(
         shape=(
             n_batches,
@@ -110,8 +121,7 @@ def generate_instances(data, n_labels, max_timesteps, batch_size=DefaultConfig.b
         shape=(
             n_batches,
             batch_size,
-            max_timesteps,
-            100),
+            max_timesteps),
         dtype=np.int32)
 
     for batch in range(n_batches):
@@ -135,7 +145,7 @@ def generate_instances(data, n_labels, max_timesteps, batch_size=DefaultConfig.b
     return (sentences, lengths, labels)
 
 
-def train_model(config, train_batches, train_lens, train_labels,validation_batches, validation_lens, validation_labels, number_to_label):
+def train_model(config, train_batches, train_lens, train_labels,validation_batches, validation_lens, validation_labels, number_to_label, embeddings):
 
     with tf.Session() as sess:
         with tf.variable_scope("model", reuse=False):
@@ -144,6 +154,7 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 train_batches,
                 train_lens,
                 train_labels,
+                embeddings.syn0,
                 phase=Phase.Train)
 
         with tf.variable_scope("model", reuse=True):
@@ -152,6 +163,7 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                 validation_batches,
                 validation_lens,
                 validation_labels,
+                embeddings.syn0,
                 phase=Phase.Validation)
 
         sess.run(tf.global_variables_initializer())
@@ -171,7 +183,6 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
                                        train_model.lens: train_lens[batch],
                                        train_model.y: train_labels[batch]})
                 train_loss += loss
-
                 print("Trained on batch "+str(batch))
 
             print("Training done")
@@ -216,23 +227,21 @@ if __name__ == "__main__":
     embedding_file = sys.argv[2]
     wordEmbeddings = read_word_embeddings(embedding_file)
     print("Embeddings have been read")
+    wordTwoindex = word2index(wordEmbeddings)
     for f in filenames:
-        read_data(f, wordEmbeddings, label_to_number)
+        read_data(f, wordEmbeddings, label_to_number, wordTwoindex)
 
-    #training = data[0:372418]
-    #test = data[372419:]
-    split = math.ceil((len(data)/5)*4)
-    training = data[0:split]
-    test = data[split+1:]
+    training = data[0:25000]
+    test = data[25000:]
     print("Data has been read")
-    print(len(label_to_number))
+
 
     (train_sentences, train_lengths, train_labels) = generate_instances(
         training,
         len(label_to_number.keys())+1,
         DefaultConfig.max_timesteps,
         batch_size=DefaultConfig.batch_size)
-
+    print(train_sentences)
     (validation_sentences, validation_lengths, validation_labels) = generate_instances(
         test,
         len(label_to_number.keys())+1,
@@ -240,4 +249,4 @@ if __name__ == "__main__":
         batch_size=DefaultConfig.batch_size)
 
     # Train the model
-    train_model(DefaultConfig, train_sentences, train_lengths, train_labels, validation_sentences, validation_lengths, validation_labels, number_to_label)
+    train_model(DefaultConfig, train_sentences, train_lengths, train_labels, validation_sentences, validation_lengths, validation_labels, number_to_label, wordEmbeddings)
