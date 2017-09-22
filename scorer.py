@@ -25,17 +25,21 @@ class Scorer:
             for ner in viterbi_entities:
                 if (ner in golden_entities):
                     correct_chunks+=1
-                    TP+=1
-                else:
-                    FP+=1
+
         f1_score = 0
         precision = 0
-       
+        print('found guessed')
+        print(found_guessed)
+
+        print('golden chunks')
+        print(found_correct)
+        print('correct')
         print(correct_chunks)
         if found_guessed > 0:
-            precision = float(correct_chunks) / float(TP+FP)
+            precision = float(correct_chunks) / float(found_guessed)
 
         if found_correct > 0:
+
             recall = float(correct_chunks) / float(found_correct)
 
         if (precision > 0) and (recall > 0):
