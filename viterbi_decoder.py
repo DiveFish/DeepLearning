@@ -1,5 +1,6 @@
 import tensorflow as tf
 
+
 class Viterbi_Decoder:
 
     def decode(self, logits, transition_params, sentence_lengths):
