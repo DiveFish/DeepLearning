@@ -47,8 +47,8 @@ class Model:
             self._y = tf.placeholder(tf.int32, shape=[batch_size, label_size])
 
         # Create bi-directional LSTM and concatenate hidden outputs
-        forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
-        backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
+        forward_cell = tf.contrib.rnn.LSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
+        backward_cell = tf.contrib.rnn.LSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
         if phase == Phase.Train:
             forward_cell = rnn.DropoutWrapper(forward_cell, state_keep_prob=config.hidden_dropout,
                                               output_keep_prob=config.hidden_dropout)
@@ -58,10 +58,10 @@ class Model:
         (hidden_1, hidden_2), _ = tf.nn.bidirectional_dynamic_rnn(forward_cell, backward_cell, embeddings,
                                                                   sequence_length=self._lens, dtype=tf.float32)
         hidden = tf.concat([hidden_1, hidden_2], axis=1)
-        hidden = tf.nn.dropout(hidden, 0.9)
+        # hidden = tf.nn.dropout(hidden, 0.9)
 
-        w = tf.get_variable("w", shape=[2*hidden_layers, num_of_labels])
-        b = tf.get_variable("b", shape=[1])
+        w = tf.get_variable("w", shape=[2*hidden_layers, num_of_labels], dtype=tf.float32)
+        b = tf.get_variable("b", shape=[1], dtype=tf.float32, initializer=tf.zeros_initializer())
 
         hidden_flattened = tf.reshape(hidden, [-1, 2*hidden_layers])
         logits = tf.matmul(hidden_flattened, w) + b
