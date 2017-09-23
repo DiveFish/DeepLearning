@@ -1,4 +1,8 @@
+# Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
+# Honor Code:  We pledge that this program represents our own work.
+
 import numpy as np
+
 
 class Scorer:
 
@@ -56,10 +60,11 @@ def extract_named_entities(sequence):
         if tag.startswith('B') and (len(chunk) == 0):
             chunk.append(tag_index)
             chunk.append(tag)
+        # (Model makes wrong prediction that chunk starts with 'I')
         elif tag.startswith('I') and (len(chunk) == 0):
             chunk.append(tag_index)
             chunk.append(tag)
-        # Inside of chunk: for 'I' continue, for 'O' end chunk, for 'B' begin new chunk
+        # Inside of chunk: for 'I' continue, for 'O' end chunk, for 'B' end chunk and begin new chunk
         elif tag.startswith('I'):
             chunk.append(tag)
         elif tag.startswith('O') and (len(chunk) > 0):

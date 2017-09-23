@@ -1,8 +1,6 @@
-#Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
-#Honor Code:  We pledge that this program represents our own work.
+# Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
+# Honor Code:  We pledge that this program represents our own work.
 
-from enum import Enum
-import os
 import sys
 from os import listdir
 import math
@@ -21,54 +19,17 @@ from scorer import Scorer
 data = []
 
 
-"""
-Extract a dictionary that contains all words in the vocabulary and its suitable word index
-from the pretrained word embeddings.
-"""
-def word2index(model):
-    counter = 0
-    word2index = {}
-    for key in model.wv.index2word:
-        word2index[key] = counter
-        counter += 1
-    word2index["unknown"] = counter
-    word2index["none_word"] = counter+1
+# Extract all filenames from a directory
+def read_files(mypath):
+    files = listdir(mypath)
+    filenames = []
+    for f in files:
+        filenames.append(mypath+"/"+f)
 
-    return word2index
+    return filenames
 
 
-"""
-Read input data and return matrix that contains every word index and the appropriate label encoded
-as integer, e.g.:
-'A house' would be encoded as
-[(3, 15), (10, 15)] where 3 and 10 are word indices for 'A' and 'house'. These will be mapped to the word vector later.
-15 is the label encoding for 'O' which is the suitable named entity tag.
-"""
-def read_data(filename, embeddings, label_dict, word2index):
-    with open(filename, "r") as f:
-        sentence = []
-        for line in f:
-            if (line != "\n"):
-                parts = line.split("\t")
-                word = parts[1]
-                tag = parts[5]
-                word_index, tag_vector = convert_data(word, tag, embeddings, label_dict, word2index)
-                sentence.append((word_index, tag_vector))
-            else:
-                data.append(sentence)
-                sentence = []
-
-    with open("data.txt", "w") as data_file:
-        for info in data[:100]:
-            for tuple in info:
-                s = ""
-                for t in tuple:
-                    s += str(t)+" "
-                data_file.write(s+"\n")
-            data_file.write("\n")
-
-
-# Extract all named-entity tags that exist in the corpus.
+# Extract all named-entity tags that exist in the corpus
 def get_labels(files):
     tags = []
     for file in files:
@@ -86,7 +47,7 @@ Encode all named entity tags as a unique integer and return two dictionaries:
 - The labels as keys mapped to their integer encoding
 - The integers mapped to their labels
 """
-def convert_label_to_number(labels):
+def label2number(labels):
     unique_labels = list(set(labels))
     label_to_number = dict()
     number_to_label = dict()
@@ -100,8 +61,31 @@ def convert_label_to_number(labels):
 
 
 """
-Take a word embedding matrix, l2 normalize it and add two randomly initialized word vectors, one for an
-unknown word and one for a 'non-word' (used for padding to make all sentences have the same length).
+Extract a dictionary that contains all words in the vocabulary and its suitable word index
+from the pretrained word embeddings.
+"""
+def word2index(model):
+    counter = 0
+    word2index = {}
+    for key in model.wv.index2word:
+        word2index[key] = counter
+        counter += 1
+    word2index["unknown"] = counter
+    word2index["non_word"] = counter+1
+
+    return word2index
+
+
+# Read pretrained word embeddings from a binary file
+def read_word_embeddings(embed_file):
+    word_vectors = KeyedVectors.load_word2vec_format(embed_file, binary=True)
+
+    return word_vectors
+
+
+"""
+Take a word embedding matrix, l2 normalize it and add two randomly initialized word vectors: one for
+unknown words, one for a 'non-word' (used for padding so that all sentences have the same length).
 """
 def convert_word_embeddings(embeds):
     embeds.wv.init_sims(True)
@@ -113,50 +97,58 @@ def convert_word_embeddings(embeds):
     for line_idx in range(len(embeds.syn0norm)):
         complete_embeddings[line_idx] = embeds.syn0norm[line_idx]
     unknown = np.random.sample(100)
-    none_word = np.random.sample(100)
+    non_word = np.random.sample(100)
     complete_embeddings[len(embeds.syn0norm)] = unknown
-    complete_embeddings[len(embeds.syn0norm) + 1] = none_word
+    complete_embeddings[len(embeds.syn0norm) + 1] = non_word
 
     return complete_embeddings
 
 
-# Extract all filenames from a directory
-def read_files(mypath):
-    files = listdir(mypath)
-    filenames = []
-    for f in files:
-        filenames.append(mypath+"/"+f)
-
-    return filenames
-
-
-# Read pretrained word embeddings from a binary file
-def read_word_embeddings(embed_file):
-    word_vectors = KeyedVectors.load_word2vec_format(embed_file, binary=True)
-
-    return word_vectors
-
-
 # Convert word and label into their integer representations as a Tuple (word_index, label_index)
-def convert_data(word, tag, embeds, tag_dict, index2word):
+def convert_data(word, tag, embeds, tag_dict, word2index):
     if (word in embeds.wv.vocab):
-        wordindex = index2word[word]
+        word_idx = word2index[word]
     else:
-        wordindex = index2word["unknown"]
+        word_idx = word2index["unknown"]
 
-    return (wordindex, tag_dict[tag])
+    return (word_idx, tag_dict[tag])
 
 
-# Return the labels, actual sentence lengths and the input data
-def generate_instances(data, max_timesteps, word_embeddings, batch_size=DefaultConfig.batch_size):
+"""
+Read input data and return matrix that contains every word index and the appropriate label encoded
+as integer, e.g.:
+   'A house'
+would be encoded as
+   [(3, 15), (10, 15)]
+where 3 and 10 are word indices for 'A' and 'house'. The indices will be mapped to the word vectors later.
+15 is the label encoding for 'O' which is the suitable named entity tag.
+"""
+def read_data(filename, embeddings, label_dict, word2index):
+    with open(filename, "r") as f:
+        sentence = []
+        for line in f:
+            if (line != "\n"):
+                parts = line.split("\t")
+                word = parts[1]
+                tag = parts[5]
+                word_index, tag_vector = convert_data(word, tag, embeddings, label_dict, word2index)
+                sentence.append((word_index, tag_vector))
+            else:
+                data.append(sentence)
+                sentence = []
+
+
+# Return input data, actual sentence lengths and labels
+def generate_instances(data, max_timesteps, word_embeddings, label_to_number, batch_size=DefaultConfig.batch_size):
     n_batches = len(data) // batch_size
 
     # We are discarding the last batch for now, for simplicity.
-    labels = np.zeros(
+    labels = np.full(
         shape=(
             n_batches,
             batch_size,
             max_timesteps),
+        fill_value=label_to_number["O"],
         dtype=np.int32)
     lengths = np.zeros(
         shape=(
@@ -284,7 +276,7 @@ if __name__ == "__main__":
 
     filenames = read_files(sys.argv[1])
     tags = get_labels(filenames)
-    (label_to_number, number_to_label) = convert_label_to_number(tags)
+    (label_to_number, number_to_label) = label2number(tags)
     embedding_file = sys.argv[2]
     word_embeddings = read_word_embeddings(embedding_file)
     print("Embeddings have been read")
@@ -294,7 +286,7 @@ if __name__ == "__main__":
         read_data(f, word_embeddings, label_to_number, word_to_index)
     complete_embeddings = convert_word_embeddings(word_embeddings)
 
-    split = math.ceil((len(data)/5))  # TODO: make sure reset to original /5) *4
+    split = math.ceil((len(data)/5))  # TODO: make sure to reset to original /5) *4
     training = data[0:split]
     test = data[split+1:]
     print("Data has been read")
@@ -306,13 +298,17 @@ if __name__ == "__main__":
         training,
         DefaultConfig.max_timesteps,
         word_embeddings,
-        batch_size=DefaultConfig.batch_size)
+        label_to_number,
+        batch_size=DefaultConfig.batch_size
+    )
 
     (validation_sentences, validation_lengths, validation_labels) = generate_instances(
         test,
         DefaultConfig.max_timesteps,
         word_embeddings,
-        batch_size=DefaultConfig.batch_size)
+        label_to_number,
+        batch_size=DefaultConfig.batch_size
+    )
 
     # The model is ready to be trained
     train_model(DefaultConfig, train_sentences, train_lengths, train_labels,

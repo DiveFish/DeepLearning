@@ -1,6 +1,5 @@
-
-#Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
-#Honor Code:  We pledge that this program represents our own work.
+# Authors: Neele Witte, 4067845; Patricia Fischer, 3928367
+# Honor Code:  We pledge that this program represents our own work.
 
 from enum import Enum
 
