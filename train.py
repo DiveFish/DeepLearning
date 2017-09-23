@@ -49,6 +49,7 @@ Encode all named entity tags as a unique integer and return two dictionaries:
 """
 def label2number(labels):
     unique_labels = list(set(labels))
+    unique_labels.append("non-label")
     label_to_number = dict()
     number_to_label = dict()
     l = Numberer()
@@ -148,7 +149,7 @@ def generate_instances(data, max_timesteps, word_embeddings, label_to_number, ba
             n_batches,
             batch_size,
             max_timesteps),
-        fill_value=label_to_number["O"],
+        fill_value=label_to_number["non-label"],
         dtype=np.int32)
     lengths = np.zeros(
         shape=(
@@ -286,7 +287,7 @@ if __name__ == "__main__":
         read_data(f, word_embeddings, label_to_number, word_to_index)
     complete_embeddings = convert_word_embeddings(word_embeddings)
 
-    split = math.ceil((len(data)/5))  # TODO: make sure to reset to original /5) *4
+    split = math.ceil((len(data)/5)*4)  # TODO: make sure to reset to original /5) *4
     training = data[0:split]
     test = data[split+1:]
     print("Data has been read")
