@@ -3,5 +3,5 @@ class DefaultConfig:
     batch_size = 512
     input_dropout = 0.8  # 0.8
     hidden_dropout = 0.85  # 0.85
-    max_timesteps = 50  # 50
+    max_timesteps = 40  # 50
 

@@ -29,7 +29,8 @@ class Model:
         input_size = batch.shape[2]
         embedding_size = len(embedding_matrix[0])
         label_size = label_batch.shape[2]
-        hidden_layers = 150  # 100
+        hidden_layers = 150
+
         # The integer-encoded words. Input_size is the (maximum) number of time steps,
         # here the longest sentence.
         self._x = tf.placeholder(tf.int32, shape=[batch_size, input_size])
@@ -46,6 +47,7 @@ class Model:
         if phase != Phase.Predict:
             self._y = tf.placeholder(tf.int32, shape=[batch_size, label_size])
 
+        # Create bi-directional LSTM and concatenate hidden outputs
         forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
         backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
         if phase == Phase.Train:
@@ -66,16 +68,18 @@ class Model:
         logits = tf.matmul(hidden_flattened, w) + b
         self._logits = logits = tf.reshape(logits, [batch_size, config.max_timesteps, num_of_labels])
 
-        # CRF layer.
+        # Add conditional random-field layer
         if phase == Phase.Train or Phase.Validation:
             log_likelihood, self._transition_params = tf.contrib.crf.crf_log_likelihood(logits, self._y, self._lens)
             self._loss = tf.reduce_mean(-log_likelihood)
+
         if phase == Phase.Train:
             global_step = tf.Variable(0, trainable=False)
             start_lr = 0.01
             # Compute current learning rate
             learning_rate = tf.train.exponential_decay(start_lr, global_step, num_of_batches, 0.90)
             # TODO: compare different optimizers (originally: AdamOptimizer)
+            # Adagrad :(, GradientDescent :/ better recall, Adadelta :(, RMSPropOptimizer :(
             self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate) \
                 .minimize(self.loss, global_step=global_step)
 
