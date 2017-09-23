@@ -49,7 +49,6 @@ Encode all named entity tags as a unique integer and return two dictionaries:
 """
 def label2number(labels):
     unique_labels = list(set(labels))
-    unique_labels.append("non-label")
     label_to_number = dict()
     number_to_label = dict()
     l = Numberer()
@@ -149,7 +148,7 @@ def generate_instances(data, max_timesteps, word_embeddings, label_to_number, ba
             n_batches,
             batch_size,
             max_timesteps),
-        fill_value=label_to_number["non-label"],
+        fill_value=label_to_number["O"],
         dtype=np.int32)
     lengths = np.zeros(
         shape=(
