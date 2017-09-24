@@ -268,6 +268,7 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
 
 if __name__ == "__main__":
 
+    print("Please train using word embeddings from wikipedia-100-mincount-30-window-10-cbow.bin")
     if len(sys.argv) != 3:
         sys.stderr.write("Usage: %s DATA WORDEMBEDDINGS\n" % sys.argv[1])
         sys.exit(1)
@@ -286,7 +287,7 @@ if __name__ == "__main__":
         read_data(f, word_embeddings, label_to_number, word_to_index)
     complete_embeddings = convert_word_embeddings(word_embeddings)
 
-    split = math.ceil((len(data)/5)*4)
+    split = math.ceil((len(data)/10)*9)
     training = data[0:split]
     test = data[split+1:]
     print("Data has been read")

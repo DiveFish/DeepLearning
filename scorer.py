@@ -39,15 +39,21 @@ class Scorer:
             print("Found (guessed) "+str(found_viterbi))
             self.precision = 100.00 * (correct_viterbi / found_viterbi)
             print("Precision: " + str(self.precision))
+        else:
+            print("Precision 0. No named entities guessed")
 
         if found_y > 0:
             print("Found (correct) "+str(correct_viterbi))
             print("Actual correct "+str(found_y))
             self.recall = 100.00 * (correct_viterbi / found_y)
             print("Recall: " + str(self.recall))
+        else:
+            print("Recall 0. No named entities in gold standard.")
 
         if (self.precision > 0) and (self.recall > 0):
             self.f1_score = 2.0 * self.precision * self.recall / (self.precision + self.recall)
             print("F1 score: "+str(self.f1_score))
+        else:
+            print("F1 score 0. Precision and recall are 0.")
 
 

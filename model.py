@@ -49,8 +49,8 @@ class Model:
             self._y = tf.placeholder(tf.int32, shape=[batch_size, label_size])
 
         # Create bi-directional LSTM and concatenate hidden outputs
-        forward_cell = tf.contrib.rnn.LSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
-        backward_cell = tf.contrib.rnn.LSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
+        forward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
+        backward_cell = tf.contrib.rnn.BasicLSTMCell(hidden_layers, reuse=tf.get_variable_scope().reuse)
         if phase == Phase.Train:
             forward_cell = rnn.DropoutWrapper(forward_cell, state_keep_prob=config.hidden_dropout,
                                               output_keep_prob=config.hidden_dropout)
