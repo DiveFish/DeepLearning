@@ -271,7 +271,7 @@ if __name__ == "__main__":
     if len(sys.argv) != 3:
         sys.stderr.write("Usage: %s DATA WORDEMBEDDINGS\n" % sys.argv[1])
         sys.exit(1)
-    if (str(sys.argv[2]).endswith("bin") == False):
+    if not str(sys.argv[2]).endswith("bin"):
         sys.stderr.write("WORD EMBEDDING FILE %s HAS TO BE BINARY\n" % str(sys.argv[2]))
 
     filenames = read_files(sys.argv[1])
@@ -286,13 +286,12 @@ if __name__ == "__main__":
         read_data(f, word_embeddings, label_to_number, word_to_index)
     complete_embeddings = convert_word_embeddings(word_embeddings)
 
-    split = math.ceil((len(data)/5)*4)  # TODO: make sure to reset to original /5) *4
+    split = math.ceil((len(data)/5)*4)
     training = data[0:split]
     test = data[split+1:]
     print("Data has been read")
 
     num_of_labels = len(label_to_number)
-    print("Number of labels: " + str(num_of_labels))
 
     (train_sentences, train_lengths, train_labels) = generate_instances(
         training,

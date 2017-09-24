@@ -13,6 +13,8 @@ class Phase(Enum):
     Predict = 2
 
 
+# Class to create the neural network graph to be
+# filled with the according data structures from train.py
 class Model:
     def __init__(
             self,
@@ -58,7 +60,6 @@ class Model:
         (hidden_1, hidden_2), _ = tf.nn.bidirectional_dynamic_rnn(forward_cell, backward_cell, embeddings,
                                                                   sequence_length=self._lens, dtype=tf.float32)
         hidden = tf.concat([hidden_1, hidden_2], axis=1)
-        # hidden = tf.nn.dropout(hidden, 0.9)
 
         w = tf.get_variable("w", shape=[2*hidden_layers, num_of_labels], dtype=tf.float32)
         b = tf.get_variable("b", shape=[1], dtype=tf.float32, initializer=tf.zeros_initializer())
@@ -77,8 +78,6 @@ class Model:
             start_lr = 0.01
             # Compute current learning rate
             learning_rate = tf.train.exponential_decay(start_lr, global_step, num_of_batches, 0.90)
-            # TODO: compare different optimizers (originally: AdamOptimizer)
-            # Adagrad :(, GradientDescent :/ better recall, Adadelta :(, RMSPropOptimizer :(
             self._train_op = tf.train.AdamOptimizer(learning_rate=learning_rate) \
                 .minimize(self.loss, global_step=global_step)
 

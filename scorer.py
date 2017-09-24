@@ -2,8 +2,10 @@
 # Honor Code:  We pledge that this program represents our own work.
 
 import numpy as np
+from chunker import Chunker
 
-
+# Class to calculate precision, recall and f1 score
+# for the best tag sequence determined by the viterbi decoder.
 class Scorer:
 
     def __init__(self):
@@ -19,11 +21,12 @@ class Scorer:
         for seq in range(len(viterbi_sequences)):
             viterbi_tag_idxs = viterbi_sequences[seq]
             viterbi_tags = [id_to_tag_dict[i] for i in np.asarray(viterbi_tag_idxs)]
-            viterbi_entities = extract_named_entities(viterbi_tags)
+            chunker = Chunker()
+            viterbi_entities = chunker.extract_named_entities(viterbi_tags)
 
             y_tag_idxs = validation_labels[batch][seq][:len(viterbi_tag_idxs)]
             y_tags = [id_to_tag_dict[j] for j in y_tag_idxs]
-            y_entities = extract_named_entities(y_tags)
+            y_entities = chunker.extract_named_entities(y_tags)
 
             found_viterbi += len(viterbi_entities)
             found_y += len(y_entities)
@@ -32,14 +35,14 @@ class Scorer:
                     correct_viterbi += 1
 
         if found_viterbi > 0:
-            print("Correct chunks "+str(correct_viterbi))
-            print("Found guessed "+str(found_viterbi))
+            print("Found (correct) "+str(correct_viterbi))
+            print("Found (guessed) "+str(found_viterbi))
             self.precision = 100.00 * (correct_viterbi / found_viterbi)
             print("Precision: " + str(self.precision))
 
         if found_y > 0:
-            print("Correct chunks "+str(correct_viterbi))
-            print("Found correct "+str(found_y))
+            print("Found (correct) "+str(correct_viterbi))
+            print("Actual correct "+str(found_y))
             self.recall = 100.00 * (correct_viterbi / found_y)
             print("Recall: " + str(self.recall))
 
@@ -47,39 +50,4 @@ class Scorer:
             self.f1_score = 2.0 * self.precision * self.recall / (self.precision + self.recall)
             print("F1 score: "+str(self.f1_score))
 
-
-# Extract all named entities from a sentence and store them with their
-# start and end index to match them against the gold standard named entities.
-def extract_named_entities(sequence):
-    chunks = []
-    chunk = []
-    for tag_index in range(len(sequence)):
-        tag = sequence[tag_index]
-        sequence_end = tag_index == len(sequence)-1
-        # Beginning of chunk
-        if tag.startswith('B') and (len(chunk) == 0):
-            chunk.append(tag_index)
-            chunk.append(tag)
-        # (Model makes wrong prediction that chunk starts with 'I')
-        elif tag.startswith('I') and (len(chunk) == 0):
-            chunk.append(tag_index)
-            chunk.append(tag)
-        # Inside of chunk: for 'I' continue, for 'O' end chunk, for 'B' end chunk and begin new chunk
-        elif tag.startswith('I'):
-            chunk.append(tag)
-        elif tag.startswith('O') and (len(chunk) > 0):
-            chunk.append(tag_index)
-            chunks.append(chunk)
-            chunk = []
-        elif tag.startswith('B') and (len(chunk) > 0):
-            chunk.append(tag_index)
-            chunks.append(chunk)
-            chunk = []
-            chunk.append(tag_index)
-            chunk.append(tag)
-        # A chunk at the end of the sequence
-        if sequence_end and (len(chunk) > 0):
-            chunk.append(tag_index)
-            chunks.append(chunk)
-    return chunks
 
