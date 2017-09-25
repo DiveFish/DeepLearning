@@ -2,7 +2,7 @@ class Numberer:
     def __init__(self):
         self.v2n = dict()
         self.n2v = list()
-        self.start_idx = 1
+        self.start_idx = 0
 
     def number(self, value, add_if_absent=True):
         n = self.v2n.get(value)
