@@ -96,8 +96,8 @@ def convert_word_embeddings(embeds):
         dtype=np.float32)
     for line_idx in range(len(embeds.syn0norm)):
         complete_embeddings[line_idx] = embeds.syn0norm[line_idx]
-    unknown = np.random.sample(100)
-    non_word = np.random.sample(100)
+    unknown = np.random.sample(len(embeds.syn0norm[0]))
+    non_word = np.random.sample(len(embeds.syn0norm[0]))
     complete_embeddings[len(embeds.syn0norm)] = unknown
     complete_embeddings[len(embeds.syn0norm) + 1] = non_word
 
@@ -115,16 +115,15 @@ def convert_data(word, tag, embeds, tag_dict, word2index):
 
 
 """
-Read input data and return matrix that contains every word index and the appropriate label encoded
-as integer, e.g.:
+Read input data and fill matrix with word index and the appropriate label encoded as integer, e.g.:
    'A house'
 would be encoded as
    [(3, 15), (10, 15)]
 where 3 and 10 are word indices for 'A' and 'house'. The indices will be mapped to the word vectors later.
 15 is the label encoding for 'O' which is the suitable named entity tag.
 """
-def read_data(filename, embeddings, label_dict, word2index):
-    with open(filename, "r") as f:
+def read_data(file_name, embeddings, label_dict, word2index):
+    with open(file_name, "r") as f:
         sentence = []
         for line in f:
             if (line != "\n"):
@@ -136,6 +135,7 @@ def read_data(filename, embeddings, label_dict, word2index):
             else:
                 data.append(sentence)
                 sentence = []
+    data.append(sentence)  # for last sentence of file
 
 
 # Return input data, actual sentence lengths and labels
@@ -160,7 +160,7 @@ def generate_instances(data, max_timesteps, word_embeddings, label_to_number, ba
             n_batches,
             batch_size,
             max_timesteps),
-        fill_value=len(word_embeddings.syn0norm)+1,
+        fill_value=len(word_embeddings)-1,
         dtype=np.int32)
 
     for batch in range(n_batches):
@@ -268,7 +268,7 @@ def train_model(config, train_batches, train_lens, train_labels,validation_batch
 
 if __name__ == "__main__":
 
-    print("Please train using word embeddings from wikipedia-100-mincount-30-window-10-cbow.bin")
+    print("NOTE: Please train using word embeddings from wikipedia-100-mincount-30-window-10-cbow.bin")
     if len(sys.argv) != 3:
         sys.stderr.write("Usage: %s DATA WORDEMBEDDINGS\n" % sys.argv[1])
         sys.exit(1)
@@ -283,6 +283,7 @@ if __name__ == "__main__":
     print("Embeddings have been read")
 
     word_to_index = word2index(word_embeddings)
+    # Process corpus
     for f in filenames:
         read_data(f, word_embeddings, label_to_number, word_to_index)
     complete_embeddings = convert_word_embeddings(word_embeddings)
@@ -297,7 +298,7 @@ if __name__ == "__main__":
     (train_sentences, train_lengths, train_labels) = generate_instances(
         training,
         DefaultConfig.max_timesteps,
-        word_embeddings,
+        complete_embeddings,
         label_to_number,
         batch_size=DefaultConfig.batch_size
     )
@@ -305,7 +306,7 @@ if __name__ == "__main__":
     (validation_sentences, validation_lengths, validation_labels) = generate_instances(
         test,
         DefaultConfig.max_timesteps,
-        word_embeddings,
+        complete_embeddings,
         label_to_number,
         batch_size=DefaultConfig.batch_size
     )
