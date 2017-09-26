@@ -30,7 +30,7 @@ class Model:
         input_size = batch.shape[2]
         embedding_size = len(embedding_matrix[0])
         label_size = label_batch.shape[2]
-        hidden_layers = 150
+        hidden_layers = 350
 
         # The integer-encoded words. Input_size is the (maximum) number of time steps,
         # here the longest sentence.
